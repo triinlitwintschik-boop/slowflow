@@ -5,6 +5,7 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const act = useMemo(
     () => result?.items?.filter((i) => i.category === "ACT") || [],
@@ -31,6 +32,7 @@ export default function App() {
       setLoading(true);
       setError("");
       setResult(null);
+      setCopied(false);
 
       const res = await fetch("/api/clarify", {
         method: "POST",
@@ -72,6 +74,7 @@ export default function App() {
     setText("");
     setResult(null);
     setError("");
+    setCopied(false);
   }
 
   function handleKeyDown(e) {
@@ -80,20 +83,68 @@ export default function App() {
     }
   }
 
+  async function copyResult() {
+    if (!result) return;
+
+    const lines = [];
+
+    if (result.summary) {
+      lines.push("What’s going on");
+      lines.push(result.summary);
+      lines.push("");
+    }
+
+    if (result.next_step_under_5_min) {
+      lines.push("One small step");
+      lines.push(result.next_step_under_5_min);
+      lines.push("");
+    }
+
+    lines.push("Sorted out");
+
+    if (act.length > 0) {
+      lines.push("Do now");
+      act.forEach((item) => lines.push(`- ${item.text}`));
+      lines.push("");
+    }
+
+    if (notNow.length > 0) {
+      lines.push("Not now");
+      notNow.forEach((item) => lines.push(`- ${item.text}`));
+      lines.push("");
+    }
+
+    if (letGo.length > 0) {
+      lines.push("Let go");
+      letGo.forEach((item) => lines.push(`- ${item.text}`));
+    }
+
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch (err) {
+      console.error(err);
+      setError("Error: Could not copy result.");
+    }
+  }
+
   function renderLoadingCard(title, lines = 3) {
     return (
       <div style={styles.card}>
         <div style={styles.cardHeader}>
           <h3 style={styles.cardTitle}>{title}</h3>
-          <div style={styles.loadingBadge}>Sorting...</div>
+          <div style={styles.loadingBadge}>Thinking...</div>
         </div>
+
         <div style={styles.skeletonWrap}>
           {Array.from({ length: lines }).map((_, idx) => (
             <div
               key={idx}
               style={{
                 ...styles.skeletonLine,
-                width: idx === lines - 1 ? "68%" : "100%"
+                width: idx === lines - 1 ? "68%" : "100%",
+                animation: "shimmer 1.4s ease-in-out infinite"
               }}
             />
           ))}
@@ -106,11 +157,32 @@ export default function App() {
 
   return (
     <div style={styles.page}>
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+
+        @keyframes floatIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+
       <div style={styles.container}>
         <div style={styles.hero}>
           <div style={styles.badge}>SlowFlow</div>
-          <h1 style={styles.title}>Clear your mind</h1>
-          <p style={styles.subtitle}>One small step at a time.</p>
+          <h1 style={styles.title}>Turn mental noise into one clear step</h1>
+          <p style={styles.subtitle}>
+            Empty your mind, gently sort what matters, and move forward without
+            pressure.
+          </p>
         </div>
 
         <div style={styles.inputCard}>
@@ -168,7 +240,7 @@ export default function App() {
           </>
         ) : (
           <>
-            <div style={styles.card}>
+            <div style={{ ...styles.card, animation: "floatIn 0.25s ease" }}>
               <div style={styles.cardHeader}>
                 <h3 style={styles.cardTitle}>🧠 What’s going on</h3>
                 <div style={styles.sectionPill}>Summary</div>
@@ -179,7 +251,7 @@ export default function App() {
               </p>
             </div>
 
-            <div style={styles.card}>
+            <div style={{ ...styles.card, animation: "floatIn 0.3s ease" }}>
               <div style={styles.cardHeader}>
                 <h3 style={styles.cardTitle}>⚡ One small step</h3>
                 <div style={styles.sectionPill}>Under 5 min</div>
@@ -191,10 +263,17 @@ export default function App() {
               </p>
             </div>
 
-            <div style={styles.card}>
+            <div style={{ ...styles.card, animation: "floatIn 0.35s ease" }}>
               <div style={styles.cardHeader}>
                 <h3 style={styles.cardTitle}>📦 Sorted out</h3>
-                <div style={styles.sectionPill}>Organized</div>
+                <div style={styles.cardActions}>
+                  <div style={styles.sectionPill}>Organized</div>
+                  {hasResult ? (
+                    <button onClick={copyResult} style={styles.copyButton}>
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
               {!hasResult && (
@@ -305,7 +384,8 @@ const styles = {
     fontSize: 14,
     color: "#6b7280",
     marginTop: 8,
-    marginBottom: 0
+    marginBottom: 0,
+    lineHeight: 1.6
   },
   inputCard: {
     background: "rgba(255,255,255,0.92)",
@@ -421,6 +501,11 @@ const styles = {
     margin: 0,
     color: "#111827"
   },
+  cardActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8
+  },
   sectionPill: {
     fontSize: 11,
     color: "#6366f1",
@@ -438,6 +523,16 @@ const styles = {
     borderRadius: 999,
     padding: "4px 8px",
     whiteSpace: "nowrap"
+  },
+  copyButton: {
+    border: "1px solid #d1d5db",
+    background: "#ffffff",
+    color: "#374151",
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "pointer"
   },
   text: {
     fontSize: 14,
