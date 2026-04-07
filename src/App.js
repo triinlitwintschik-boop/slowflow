@@ -1,104 +1,544 @@
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const RATE_LIMIT_MAX_REQUESTS = 10;
+import React, { useMemo, useState } from "react";
 
-const memoryStore = global.rateLimitStore || new Map();
-global.rateLimitStore = memoryStore;
+export default function App() {
+  const [text, setText] = useState("");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-function getClientIp(req) {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && forwarded.length > 0) {
-    return forwarded.split(",")[0].trim();
-  }
+  const act = useMemo(
+    () => result?.items?.filter((i) => i.category === "ACT") || [],
+    [result]
+  );
 
-  return req.socket?.remoteAddress || "unknown";
-}
+  const notNow = useMemo(
+    () => result?.items?.filter((i) => i.category === "NOT_NOW") || [],
+    [result]
+  );
 
-function isRateLimited(ip) {
-  const now = Date.now();
-  const entry = memoryStore.get(ip);
+  const letGo = useMemo(
+    () => result?.items?.filter((i) => i.category === "LET_GO") || [],
+    [result]
+  );
 
-  if (!entry) {
-    memoryStore.set(ip, {
-      count: 1,
-      resetAt: now + RATE_LIMIT_WINDOW_MS
-    });
-    return false;
-  }
-
-  if (now > entry.resetAt) {
-    memoryStore.set(ip, {
-      count: 1,
-      resetAt: now + RATE_LIMIT_WINDOW_MS
-    });
-    return false;
-  }
-
-  if (entry.count >= RATE_LIMIT_MAX_REQUESTS) {
-    return true;
-  }
-
-  entry.count += 1;
-  memoryStore.set(ip, entry);
-  return false;
-}
-
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const clientIp = getClientIp(req);
-
-  if (isRateLimited(clientIp)) {
-    return res.status(429).json({
-      error: "Too many requests. Please wait a minute and try again."
-    });
-  }
-
-  try {
-    const { brainDump } = req.body || {};
-
-    if (!brainDump || !String(brainDump).trim()) {
-      return res.status(400).json({ error: "Missing brainDump" });
-    }
-
-    const webhookUrl = process.env.MAKE_WEBHOOK_URL;
-
-    if (!webhookUrl) {
-      return res.status(500).json({ error: "Missing MAKE_WEBHOOK_URL" });
-    }
-
-    const makeResponse = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        brainDump: String(brainDump).trim()
-      })
-    });
-
-    const rawText = await makeResponse.text();
-
-    if (!makeResponse.ok) {
-      return res.status(makeResponse.status).json({
-        error: `Make request failed: ${makeResponse.status}`,
-        details: rawText
-      });
+  async function clarify() {
+    if (!text.trim()) {
+      setError("Please write a few thoughts first.");
+      return;
     }
 
     try {
-      const json = JSON.parse(rawText);
-      return res.status(200).json(json);
-    } catch {
-      return res.status(502).json({
-        error: "Make did not return valid JSON",
-        details: rawText
+      setLoading(true);
+      setError("");
+      setResult(null);
+
+      const res = await fetch("/api/clarify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ brainDump: text.trim() })
       });
+
+      const contentType = res.headers.get("content-type") || "";
+
+      if (!res.ok) {
+        let message = `Request failed: ${res.status}`;
+
+        if (contentType.includes("application/json")) {
+          const errorData = await res.json();
+          message = errorData?.error || message;
+        } else {
+          const errorText = await res.text();
+          if (errorText) {
+            message = errorText;
+          }
+        }
+
+        throw new Error(message);
+      }
+
+      const data = await res.json();
+      setResult(data);
+    } catch (err) {
+      console.error(err);
+      setError("Error: " + err.message);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    return res.status(500).json({
-      error: error.message || "Unexpected server error"
-    });
   }
+
+  function resetAll() {
+    setText("");
+    setResult(null);
+    setError("");
+  }
+
+  function handleKeyDown(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      clarify();
+    }
+  }
+
+  function renderLoadingCard(title, lines = 3) {
+    return (
+      <div style={styles.card}>
+        <div style={styles.cardHeader}>
+          <h3 style={styles.cardTitle}>{title}</h3>
+          <div style={styles.loadingBadge}>Sorting...</div>
+        </div>
+        <div style={styles.skeletonWrap}>
+          {Array.from({ length: lines }).map((_, idx) => (
+            <div
+              key={idx}
+              style={{
+                ...styles.skeletonLine,
+                width: idx === lines - 1 ? "68%" : "100%"
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const hasResult = !!result;
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <div style={styles.hero}>
+          <div style={styles.badge}>SlowFlow</div>
+          <h1 style={styles.title}>Clear your mind</h1>
+          <p style={styles.subtitle}>One small step at a time.</p>
+        </div>
+
+        <div style={styles.inputCard}>
+          <label style={styles.label}>Brain dump</label>
+
+          <textarea
+            placeholder="Write everything on your mind..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            style={styles.textarea}
+          />
+
+          <div style={styles.inputMeta}>
+            <div style={styles.hint}>Cmd/Ctrl + Enter to clarify</div>
+            <div style={styles.charCount}>{text.trim().length} chars</div>
+          </div>
+
+          <div style={styles.buttonRow}>
+            <button
+              onClick={clarify}
+              disabled={loading}
+              style={{
+                ...styles.button,
+                ...(loading ? styles.buttonDisabled : {})
+              }}
+            >
+              {loading ? "Sorting..." : "Clarify"}
+            </button>
+
+            <button
+              onClick={resetAll}
+              disabled={loading}
+              style={{
+                ...styles.resetButton,
+                ...(loading ? styles.resetButtonDisabled : {})
+              }}
+            >
+              Reset
+            </button>
+          </div>
+
+          <div style={styles.privacyNote}>
+            Your text is used only to organize what you wrote.
+          </div>
+        </div>
+
+        {error ? <div style={styles.errorCard}>{error}</div> : null}
+
+        {loading ? (
+          <>
+            {renderLoadingCard("🧠 What’s going on", 3)}
+            {renderLoadingCard("⚡ One small step", 2)}
+            {renderLoadingCard("📦 Sorted out", 4)}
+          </>
+        ) : (
+          <>
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>🧠 What’s going on</h3>
+                <div style={styles.sectionPill}>Summary</div>
+              </div>
+
+              <p style={styles.text}>
+                {result?.summary || "Write something and press clarify"}
+              </p>
+            </div>
+
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>⚡ One small step</h3>
+                <div style={styles.sectionPill}>Under 5 min</div>
+              </div>
+
+              <p style={styles.stepBox}>
+                {result?.next_step_under_5_min ||
+                  "We’ll suggest a tiny step here"}
+              </p>
+            </div>
+
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>📦 Sorted out</h3>
+                <div style={styles.sectionPill}>Organized</div>
+              </div>
+
+              {!hasResult && (
+                <div style={styles.emptyState}>
+                  <div style={styles.emptyTitle}>Nothing sorted yet</div>
+                  <div style={styles.emptyText}>
+                    Your thoughts will appear here as Do now, Not now, and Let go.
+                  </div>
+                </div>
+              )}
+
+              {act.length > 0 && (
+                <div style={styles.group}>
+                  <div style={styles.groupTop}>
+                    <h4 style={styles.groupTitle}>🚀 Do now</h4>
+                    <div style={styles.groupCount}>{act.length}</div>
+                  </div>
+
+                  <div style={styles.list}>
+                    {act.map((item, idx) => (
+                      <div key={idx} style={styles.item}>
+                        {item.text}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {notNow.length > 0 && (
+                <div style={styles.group}>
+                  <div style={styles.groupTop}>
+                    <h4 style={styles.groupTitle}>🕓 Not now</h4>
+                    <div style={styles.groupCount}>{notNow.length}</div>
+                  </div>
+
+                  <div style={styles.list}>
+                    {notNow.map((item, idx) => (
+                      <div key={idx} style={styles.itemSoft}>
+                        {item.text}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {letGo.length > 0 && (
+                <div style={styles.group}>
+                  <div style={styles.groupTop}>
+                    <h4 style={styles.groupTitle}>🧘 Let go</h4>
+                    <div style={styles.groupCount}>{letGo.length}</div>
+                  </div>
+
+                  <div style={styles.list}>
+                    {letGo.map((item, idx) => (
+                      <div key={idx} style={styles.itemCalm}>
+                        {item.text}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        <div style={styles.footer}>No pressure. Just one step at a time.</div>
+      </div>
+    </div>
+  );
 }
+
+const styles = {
+  page: {
+    background:
+      "radial-gradient(circle at top, #ffffff 0%, #f8fafc 45%, #eef2ff 100%)",
+    minHeight: "100vh",
+    padding: "24px 12px 40px"
+  },
+  container: {
+    maxWidth: 440,
+    margin: "0 auto",
+    fontFamily:
+      'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  },
+  hero: {
+    marginBottom: 18
+  },
+  badge: {
+    display: "inline-block",
+    padding: "6px 10px",
+    borderRadius: 999,
+    background: "#ffffff",
+    color: "#6366f1",
+    fontSize: 11,
+    fontWeight: 700,
+    marginBottom: 10,
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 4px 14px rgba(15,23,42,0.06)"
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: 800,
+    margin: 0,
+    color: "#111827",
+    letterSpacing: "-0.03em"
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginTop: 8,
+    marginBottom: 0
+  },
+  inputCard: {
+    background: "rgba(255,255,255,0.92)",
+    padding: 16,
+    borderRadius: 22,
+    marginBottom: 14,
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 12px 30px rgba(15,23,42,0.06)"
+  },
+  label: {
+    display: "block",
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#374151",
+    marginBottom: 8
+  },
+  textarea: {
+    width: "100%",
+    minHeight: 150,
+    padding: 14,
+    borderRadius: 16,
+    border: "1px solid #dbe3ef",
+    fontSize: 15,
+    boxSizing: "border-box",
+    resize: "vertical",
+    outline: "none",
+    background: "#ffffff",
+    color: "#111827",
+    lineHeight: 1.55
+  },
+  inputMeta: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 12,
+    gap: 8
+  },
+  hint: {
+    fontSize: 11,
+    color: "#94a3b8"
+  },
+  charCount: {
+    fontSize: 11,
+    color: "#94a3b8",
+    whiteSpace: "nowrap"
+  },
+  buttonRow: {
+    display: "flex",
+    gap: 8
+  },
+  button: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 14,
+    border: "none",
+    background: "linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)",
+    color: "white",
+    fontWeight: 700,
+    fontSize: 14,
+    boxShadow: "0 8px 18px rgba(99,102,241,0.22)",
+    transition: "all 0.2s ease"
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+    cursor: "default",
+    boxShadow: "none"
+  },
+  resetButton: {
+    padding: "16px 14px",
+    borderRadius: 14,
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+    fontWeight: 600,
+    fontSize: 14,
+    color: "#374151"
+  },
+  resetButtonDisabled: {
+    opacity: 0.7,
+    cursor: "default"
+  },
+  privacyNote: {
+    marginTop: 12,
+    fontSize: 11,
+    color: "#9ca3af"
+  },
+  errorCard: {
+    background: "#fff1f2",
+    color: "#b91c1c",
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 12,
+    fontSize: 13,
+    border: "1px solid #fecdd3"
+  },
+  card: {
+    background: "rgba(255,255,255,0.94)",
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 12,
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 10px 24px rgba(15,23,42,0.05)"
+  },
+  cardHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10
+  },
+  cardTitle: {
+    fontSize: 15,
+    margin: 0,
+    color: "#111827"
+  },
+  sectionPill: {
+    fontSize: 11,
+    color: "#6366f1",
+    background: "#eef2ff",
+    border: "1px solid #c7d2fe",
+    borderRadius: 999,
+    padding: "4px 8px",
+    whiteSpace: "nowrap"
+  },
+  loadingBadge: {
+    fontSize: 11,
+    color: "#6d28d9",
+    background: "#f5f3ff",
+    border: "1px solid #ddd6fe",
+    borderRadius: 999,
+    padding: "4px 8px",
+    whiteSpace: "nowrap"
+  },
+  text: {
+    fontSize: 14,
+    color: "#334155",
+    margin: 0,
+    lineHeight: 1.65
+  },
+  stepBox: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#1f2937",
+    background: "#f8fafc",
+    padding: "12px 14px",
+    borderRadius: 12,
+    margin: 0,
+    border: "1px solid #e2e8f0"
+  },
+  emptyState: {
+    padding: "6px 0 2px"
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#4b5563",
+    marginBottom: 4
+  },
+  emptyText: {
+    fontSize: 13,
+    color: "#6b7280",
+    lineHeight: 1.6
+  },
+  group: {
+    marginTop: 14
+  },
+  groupTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8
+  },
+  groupTitle: {
+    fontSize: 13,
+    margin: 0,
+    color: "#374151"
+  },
+  groupCount: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 999,
+    background: "#f3f4f6",
+    color: "#6b7280",
+    fontSize: 12,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  list: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8
+  },
+  item: {
+    padding: "11px 12px",
+    borderRadius: 12,
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    color: "#1f2937",
+    fontSize: 14
+  },
+  itemSoft: {
+    padding: "11px 12px",
+    borderRadius: 12,
+    background: "#fafaf9",
+    border: "1px solid #e7e5e4",
+    color: "#374151",
+    fontSize: 14
+  },
+  itemCalm: {
+    padding: "11px 12px",
+    borderRadius: 12,
+    background: "#f0fdf4",
+    border: "1px solid #bbf7d0",
+    color: "#166534",
+    fontSize: 14
+  },
+  skeletonWrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8
+  },
+  skeletonLine: {
+    height: 12,
+    borderRadius: 999,
+    background:
+      "linear-gradient(90deg, #eef2f7 25%, #f8fafc 50%, #eef2f7 75%)",
+    backgroundSize: "200% 100%"
+  },
+  footer: {
+    textAlign: "center",
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 8
+  }
+};
