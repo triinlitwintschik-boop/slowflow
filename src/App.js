@@ -6,6 +6,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [showCopyMenu, setShowCopyMenu] = useState(false);
 
   const act = useMemo(
     () => result?.items?.filter((i) => i.category === "ACT") || [],
@@ -33,6 +34,7 @@ export default function App() {
       setError("");
       setResult(null);
       setCopied(false);
+      setShowCopyMenu(false);
 
       const res = await fetch("/api/clarify", {
         method: "POST",
@@ -75,6 +77,7 @@ export default function App() {
     setResult(null);
     setError("");
     setCopied(false);
+    setShowCopyMenu(false);
   }
 
   function handleKeyDown(e) {
@@ -83,10 +86,16 @@ export default function App() {
     }
   }
 
-  async function copyResult() {
+  async function copyResult(format = "plain") {
     if (!result) return;
 
     const lines = [];
+
+    const bullet = (value) => {
+      if (format === "checklist") return `- [ ] ${value}`;
+      if (format === "notion") return `☐ ${value}`;
+      return `- ${value}`;
+    };
 
     if (result.summary) {
       lines.push("What’s going on");
@@ -104,25 +113,26 @@ export default function App() {
 
     if (act.length > 0) {
       lines.push("Do now");
-      act.forEach((item) => lines.push(`- ${item.text}`));
+      act.forEach((item) => lines.push(bullet(item.text)));
       lines.push("");
     }
 
     if (notNow.length > 0) {
       lines.push("Not now");
-      notNow.forEach((item) => lines.push(`- ${item.text}`));
+      notNow.forEach((item) => lines.push(bullet(item.text)));
       lines.push("");
     }
 
     if (letGo.length > 0) {
       lines.push("Let go");
-      letGo.forEach((item) => lines.push(`- ${item.text}`));
+      letGo.forEach((item) => lines.push(bullet(item.text)));
     }
 
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      setCopied(format);
+      setShowCopyMenu(false);
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error(err);
       setError("Error: Could not copy result.");
@@ -269,9 +279,37 @@ export default function App() {
                 <div style={styles.cardActions}>
                   <div style={styles.sectionPill}>Organized</div>
                   {hasResult ? (
-                    <button onClick={copyResult} style={styles.copyButton}>
-                      {copied ? "Copied" : "Copy"}
-                    </button>
+                    <div style={styles.copyMenuWrap}>
+                      <button
+                        onClick={() => setShowCopyMenu(!showCopyMenu)}
+                        style={styles.copyButton}
+                      >
+                        {copied ? `Copied (${copied})` : "Copy as"}
+                      </button>
+
+                      {showCopyMenu && (
+                        <div style={styles.copyMenu}>
+                          <button
+                            onClick={() => copyResult("plain")}
+                            style={styles.copyItem}
+                          >
+                            Plain text
+                          </button>
+                          <button
+                            onClick={() => copyResult("checklist")}
+                            style={styles.copyItem}
+                          >
+                            Checklist
+                          </button>
+                          <button
+                            onClick={() => copyResult("notion")}
+                            style={styles.copyItem}
+                          >
+                            Notion style
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -280,7 +318,8 @@ export default function App() {
                 <div style={styles.emptyState}>
                   <div style={styles.emptyTitle}>Nothing sorted yet</div>
                   <div style={styles.emptyText}>
-                    Your thoughts will appear here as Do now, Not now, and Let go.
+                    Your thoughts will appear here as Do now, Not now, and Let
+                    go.
                   </div>
                 </div>
               )}
@@ -524,6 +563,9 @@ const styles = {
     padding: "4px 8px",
     whiteSpace: "nowrap"
   },
+  copyMenuWrap: {
+    position: "relative"
+  },
   copyButton: {
     border: "1px solid #d1d5db",
     background: "#ffffff",
@@ -532,6 +574,30 @@ const styles = {
     padding: "6px 10px",
     fontSize: 11,
     fontWeight: 700,
+    cursor: "pointer"
+  },
+  copyMenu: {
+    position: "absolute",
+    top: "115%",
+    right: 0,
+    minWidth: 150,
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    borderRadius: 12,
+    boxShadow: "0 12px 24px rgba(15,23,42,0.12)",
+    padding: 6,
+    zIndex: 20
+  },
+  copyItem: {
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    background: "transparent",
+    border: "none",
+    borderRadius: 8,
+    padding: "9px 10px",
+    fontSize: 13,
+    color: "#374151",
     cursor: "pointer"
   },
   text: {
