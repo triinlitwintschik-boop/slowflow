@@ -31,19 +31,30 @@ export default function App() {
       setLoading(true);
       setError("");
 
-      const res = await fetch(
-        "https://hook.eu1.make.com/2bqwckw10kfqiuv4j6w9r1rhrkyp47ac",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ brainDump: text.trim() })
-        }
-      );
+      const res = await fetch("/api/clarify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ brainDump: text.trim() })
+      });
+
+      const contentType = res.headers.get("content-type") || "";
 
       if (!res.ok) {
-        throw new Error(`Request failed: ${res.status}`);
+        let message = `Request failed: ${res.status}`;
+
+        if (contentType.includes("application/json")) {
+          const errorData = await res.json();
+          message = errorData?.error || message;
+        } else {
+          const errorText = await res.text();
+          if (errorText) {
+            message = errorText;
+          }
+        }
+
+        throw new Error(message);
       }
 
       const data = await res.json();
