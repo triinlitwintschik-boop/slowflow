@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+const DONE_STORAGE_KEY = "slowflow-done-items";
+
 export default function App() {
   const [text, setText] = useState("");
   const [result, setResult] = useState(null);
@@ -7,7 +9,14 @@ export default function App() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
-  const [doneItems, setDoneItems] = useState({});
+  const [doneItems, setDoneItems] = useState(() => {
+    try {
+      const saved = localStorage.getItem(DONE_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
   const actRaw = useMemo(
     () => result?.items?.filter((i) => i.category === "ACT") || [],
@@ -35,8 +44,12 @@ export default function App() {
   }, [actRaw, normalizedNextStep]);
 
   useEffect(() => {
-    setDoneItems({});
-  }, [result]);
+    try {
+      localStorage.setItem(DONE_STORAGE_KEY, JSON.stringify(doneItems));
+    } catch {
+      // ignore localStorage errors
+    }
+  }, [doneItems]);
 
   function normalizeText(value) {
     return String(value || "")
@@ -127,7 +140,15 @@ export default function App() {
     setError("");
     setCopied(false);
     setShowCopyMenu(false);
+  }
+
+  function clearDoneItems() {
     setDoneItems({});
+    try {
+      localStorage.removeItem(DONE_STORAGE_KEY);
+    } catch {
+      // ignore localStorage errors
+    }
   }
 
   function handleKeyDown(e) {
@@ -236,9 +257,7 @@ export default function App() {
           onClick={() => toggleDone(category, textValue)}
           style={styles.itemMainButton}
         >
-          <div style={styles.checkCircle}>
-            {done ? "✓" : ""}
-          </div>
+          <div style={styles.checkCircle}>{done ? "✓" : ""}</div>
 
           <div
             style={{
@@ -262,6 +281,7 @@ export default function App() {
   }
 
   const hasResult = !!result;
+  const hasAnyDoneItems = Object.values(doneItems).some(Boolean);
 
   return (
     <div style={styles.page}>
@@ -376,13 +396,22 @@ export default function App() {
                 <h3 style={styles.cardTitle}>📦 Sorted out</h3>
                 <div style={styles.cardActions}>
                   <div style={styles.sectionPill}>Organized</div>
+
+                  {hasAnyDoneItems ? (
+                    <button onClick={clearDoneItems} style={styles.clearDoneButton}>
+                      Clear done
+                    </button>
+                  ) : null}
+
                   {hasResult ? (
                     <div style={styles.copyMenuWrap}>
                       <button
                         onClick={() => setShowCopyMenu(!showCopyMenu)}
                         style={styles.copyButton}
                       >
-                        {copied && typeof copied === "string" && !copied.startsWith("item:")
+                        {copied &&
+                        typeof copied === "string" &&
+                        !copied.startsWith("item:")
                           ? `Copied (${copied})`
                           : "Copy as"}
                       </button>
@@ -635,7 +664,9 @@ const styles = {
   cardActions: {
     display: "flex",
     alignItems: "center",
-    gap: 8
+    gap: 8,
+    flexWrap: "wrap",
+    justifyContent: "flex-end"
   },
   sectionPill: {
     fontSize: 11,
@@ -654,6 +685,16 @@ const styles = {
     borderRadius: 999,
     padding: "4px 8px",
     whiteSpace: "nowrap"
+  },
+  clearDoneButton: {
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
+    color: "#6b7280",
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "pointer"
   },
   copyMenuWrap: {
     position: "relative"
