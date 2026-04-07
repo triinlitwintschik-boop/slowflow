@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 export default function App() {
   const [text, setText] = useState("");
@@ -7,8 +7,9 @@ export default function App() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
+  const [doneItems, setDoneItems] = useState({});
 
-  const act = useMemo(
+  const actRaw = useMemo(
     () => result?.items?.filter((i) => i.category === "ACT") || [],
     [result]
   );
@@ -22,6 +23,54 @@ export default function App() {
     () => result?.items?.filter((i) => i.category === "LET_GO") || [],
     [result]
   );
+
+  const normalizedNextStep = useMemo(() => {
+    return normalizeText(result?.next_step_under_5_min || "");
+  }, [result]);
+
+  const act = useMemo(() => {
+    return actRaw.filter(
+      (item) => normalizeText(item.text) !== normalizedNextStep
+    );
+  }, [actRaw, normalizedNextStep]);
+
+  useEffect(() => {
+    setDoneItems({});
+  }, [result]);
+
+  function normalizeText(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[.?!,]+$/g, "");
+  }
+
+  function getItemKey(category, textValue) {
+    return `${category}::${normalizeText(textValue)}`;
+  }
+
+  function isDone(category, textValue) {
+    return !!doneItems[getItemKey(category, textValue)];
+  }
+
+  function toggleDone(category, textValue) {
+    const key = getItemKey(category, textValue);
+    setDoneItems((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  }
+
+  async function copySingleItem(textValue) {
+    try {
+      await navigator.clipboard.writeText(textValue);
+      setCopied(`item:${textValue}`);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      console.error(err);
+      setError("Error: Could not copy item.");
+    }
+  }
 
   async function clarify() {
     if (!text.trim()) {
@@ -78,6 +127,7 @@ export default function App() {
     setError("");
     setCopied(false);
     setShowCopyMenu(false);
+    setDoneItems({});
   }
 
   function handleKeyDown(e) {
@@ -159,6 +209,54 @@ export default function App() {
             />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  function renderItem(textValue, variant, category) {
+    const done = isDone(category, textValue);
+
+    const baseStyle =
+      variant === "soft"
+        ? styles.itemSoft
+        : variant === "calm"
+        ? styles.itemCalm
+        : styles.item;
+
+    return (
+      <div
+        key={`${category}-${textValue}`}
+        style={{
+          ...styles.itemRow,
+          ...(done ? styles.itemRowDone : {})
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => toggleDone(category, textValue)}
+          style={styles.itemMainButton}
+        >
+          <div style={styles.checkCircle}>
+            {done ? "✓" : ""}
+          </div>
+
+          <div
+            style={{
+              ...baseStyle,
+              ...(done ? styles.itemDone : {})
+            }}
+          >
+            {textValue}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => copySingleItem(textValue)}
+          style={styles.inlineCopyButton}
+        >
+          {copied === `item:${textValue}` ? "Copied" : "Copy"}
+        </button>
       </div>
     );
   }
@@ -284,7 +382,9 @@ export default function App() {
                         onClick={() => setShowCopyMenu(!showCopyMenu)}
                         style={styles.copyButton}
                       >
-                        {copied ? `Copied (${copied})` : "Copy as"}
+                        {copied && typeof copied === "string" && !copied.startsWith("item:")
+                          ? `Copied (${copied})`
+                          : "Copy as"}
                       </button>
 
                       {showCopyMenu && (
@@ -332,11 +432,7 @@ export default function App() {
                   </div>
 
                   <div style={styles.list}>
-                    {act.map((item, idx) => (
-                      <div key={idx} style={styles.item}>
-                        {item.text}
-                      </div>
-                    ))}
+                    {act.map((item) => renderItem(item.text, "default", "ACT"))}
                   </div>
                 </div>
               )}
@@ -349,11 +445,9 @@ export default function App() {
                   </div>
 
                   <div style={styles.list}>
-                    {notNow.map((item, idx) => (
-                      <div key={idx} style={styles.itemSoft}>
-                        {item.text}
-                      </div>
-                    ))}
+                    {notNow.map((item) =>
+                      renderItem(item.text, "soft", "NOT_NOW")
+                    )}
                   </div>
                 </div>
               )}
@@ -366,11 +460,9 @@ export default function App() {
                   </div>
 
                   <div style={styles.list}>
-                    {letGo.map((item, idx) => (
-                      <div key={idx} style={styles.itemCalm}>
-                        {item.text}
-                      </div>
-                    ))}
+                    {letGo.map((item) =>
+                      renderItem(item.text, "calm", "LET_GO")
+                    )}
                   </div>
                 </div>
               )}
@@ -660,7 +752,52 @@ const styles = {
     flexDirection: "column",
     gap: 8
   },
+  itemRow: {
+    display: "flex",
+    alignItems: "stretch",
+    gap: 8
+  },
+  itemRowDone: {
+    opacity: 0.72
+  },
+  itemMainButton: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: 0,
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    textAlign: "left"
+  },
+  checkCircle: {
+    width: 22,
+    height: 22,
+    minWidth: 22,
+    borderRadius: 999,
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
+    color: "#22c55e",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 13,
+    fontWeight: 700,
+    marginTop: 2
+  },
+  inlineCopyButton: {
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
+    color: "#6b7280",
+    borderRadius: 10,
+    padding: "0 10px",
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
   item: {
+    flex: 1,
     padding: "11px 12px",
     borderRadius: 12,
     background: "#f8fafc",
@@ -669,6 +806,7 @@ const styles = {
     fontSize: 14
   },
   itemSoft: {
+    flex: 1,
     padding: "11px 12px",
     borderRadius: 12,
     background: "#fafaf9",
@@ -677,12 +815,19 @@ const styles = {
     fontSize: 14
   },
   itemCalm: {
+    flex: 1,
     padding: "11px 12px",
     borderRadius: 12,
     background: "#f0fdf4",
     border: "1px solid #bbf7d0",
     color: "#166534",
     fontSize: 14
+  },
+  itemDone: {
+    textDecoration: "line-through",
+    color: "#94a3b8",
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb"
   },
   skeletonWrap: {
     display: "flex",
