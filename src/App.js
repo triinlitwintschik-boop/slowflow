@@ -355,7 +355,6 @@ export default function App() {
 
       <div style={styles.container}>
         <div style={styles.hero}>
-          <div style={styles.logoGlow} />
           <div style={styles.badge}>SlowFlow</div>
           <h1 style={styles.title}>Turn mental noise into one clear step</h1>
           <p style={styles.subtitle}>
@@ -582,8 +581,11 @@ const styles = {
   page: {
     minHeight: "100vh",
     padding: "24px 12px 40px",
-    background:
-      "radial-gradient(circle at top, rgba(56,189,248,0.12) 0%, rgba(5,8,10,0.96) 22%, #04070a 52%, #020406 100%)"
+    background: `
+      radial-gradient(circle at 50% -10%, rgba(125,211,252,0.12), transparent 40%),
+      radial-gradient(circle at 80% 0%, rgba(56,189,248,0.08), transparent 45%),
+      #020406
+    `
   },
   container: {
     maxWidth: 440,
@@ -594,17 +596,6 @@ const styles = {
   hero: {
     marginBottom: 18,
     position: "relative"
-  },
-  logoGlow: {
-    position: "absolute",
-    width: 140,
-    height: 140,
-    borderRadius: "50%",
-    background: "radial-gradient(circle, rgba(125,211,252,0.18), transparent 70%)",
-    top: -40,
-    left: -10,
-    pointerEvents: "none",
-    filter: "blur(6px)"
   },
   badge: {
     position: "relative",
