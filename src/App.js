@@ -9,6 +9,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [doneItems, setDoneItems] = useState(() => {
     try {
       const saved = localStorage.getItem(DONE_STORAGE_KEY);
@@ -109,6 +110,59 @@ export default function App() {
     [actDone, notNowDone, letGoDone]
   );
 
+  function buildFormattedText(format = "plain", onlyAct = false) {
+    if (!result) return "";
+
+    const lines = [];
+
+    const bullet = (value) => {
+      if (format === "checklist") return `- [ ] ${value}`;
+      if (format === "notion") return `☐ ${value}`;
+      return `- ${value}`;
+    };
+
+    if (!onlyAct) {
+      if (result.summary) {
+        lines.push("What's going on");
+        lines.push(result.summary);
+        lines.push("");
+      }
+
+      if (result.next_step_under_5_min) {
+        lines.push("One small step");
+        lines.push(result.next_step_under_5_min);
+        lines.push("");
+      }
+
+      lines.push("Sorted out");
+    }
+
+    if (act.length > 0) {
+      lines.push(onlyAct ? "Do now" : "Do now");
+      act.forEach((item) => lines.push(bullet(item.text)));
+      lines.push("");
+    }
+
+    if (!onlyAct && notNow.length > 0) {
+      lines.push("Not now");
+      notNow.forEach((item) => lines.push(bullet(item.text)));
+      lines.push("");
+    }
+
+    if (!onlyAct && letGo.length > 0) {
+      lines.push("Let go");
+      letGo.forEach((item) => lines.push(bullet(item.text)));
+      lines.push("");
+    }
+
+    if (!onlyAct && doneList.length > 0) {
+      lines.push("Done");
+      doneList.forEach((item) => lines.push(bullet(item.text)));
+    }
+
+    return lines.join("\n").trim();
+  }
+
   async function copySingleItem(textValue) {
     try {
       await navigator.clipboard.writeText(textValue);
@@ -132,6 +186,7 @@ export default function App() {
       setResult(null);
       setCopied(false);
       setShowCopyMenu(false);
+      setShowExportMenu(false);
 
       const res = await fetch("/api/clarify", {
         method: "POST",
@@ -175,6 +230,7 @@ export default function App() {
     setError("");
     setCopied(false);
     setShowCopyMenu(false);
+    setShowExportMenu(false);
   }
 
   function clearDoneItems() {
@@ -192,63 +248,52 @@ export default function App() {
     }
   }
 
-  async function copyResult(format = "plain") {
+  async function copyResult(format = "plain", onlyAct = false) {
     if (!result) return;
 
-    const lines = [];
-
-    const bullet = (value) => {
-      if (format === "checklist") return `- [ ] ${value}`;
-      if (format === "notion") return `☐ ${value}`;
-      return `- ${value}`;
-    };
-
-    if (result.summary) {
-      lines.push("What's going on");
-      lines.push(result.summary);
-      lines.push("");
-    }
-
-    if (result.next_step_under_5_min) {
-      lines.push("One small step");
-      lines.push(result.next_step_under_5_min);
-      lines.push("");
-    }
-
-    lines.push("Sorted out");
-
-    if (act.length > 0) {
-      lines.push("Do now");
-      act.forEach((item) => lines.push(bullet(item.text)));
-      lines.push("");
-    }
-
-    if (notNow.length > 0) {
-      lines.push("Not now");
-      notNow.forEach((item) => lines.push(bullet(item.text)));
-      lines.push("");
-    }
-
-    if (letGo.length > 0) {
-      lines.push("Let go");
-      letGo.forEach((item) => lines.push(bullet(item.text)));
-      lines.push("");
-    }
-
-    if (doneList.length > 0) {
-      lines.push("Done");
-      doneList.forEach((item) => lines.push(bullet(item.text)));
-    }
-
     try {
-      await navigator.clipboard.writeText(lines.join("\n"));
-      setCopied(format);
+      const output = buildFormattedText(format, onlyAct);
+      await navigator.clipboard.writeText(output);
+      setCopied(onlyAct ? `${format}-act` : format);
       setShowCopyMenu(false);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error(err);
       setError("Error: Could not copy result.");
     }
+  }
+
+  function downloadTextFile(content, filename) {
+    try {
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setShowExportMenu(false);
+    } catch (err) {
+      console.error(err);
+      setError("Error: Could not export file.");
+    }
+  }
+
+  function exportResult(format = "plain", onlyAct = false) {
+    if (!result) return;
+
+    const content = buildFormattedText(format, onlyAct);
+    const suffix = onlyAct ? "-do-now" : "";
+    const filename =
+      format === "checklist"
+        ? `slowflow-checklist${suffix}.txt`
+        : format === "notion"
+        ? `slowflow-notion${suffix}.txt`
+        : `slowflow${suffix}.txt`;
+
+    downloadTextFile(content, filename);
   }
 
   function renderLoadingCard(title, lines = 3) {
@@ -455,41 +500,93 @@ export default function App() {
                   ) : null}
 
                   {hasResult ? (
-                    <div style={styles.copyMenuWrap}>
-                      <button
-                        onClick={() => setShowCopyMenu(!showCopyMenu)}
-                        style={styles.copyButton}
-                      >
-                        {copied &&
-                        typeof copied === "string" &&
-                        !copied.startsWith("item:")
-                          ? `Copied (${copied})`
-                          : "Copy as"}
-                      </button>
+                    <>
+                      <div style={styles.copyMenuWrap}>
+                        <button
+                          onClick={() => {
+                            setShowCopyMenu(!showCopyMenu);
+                            setShowExportMenu(false);
+                          }}
+                          style={styles.copyButton}
+                        >
+                          {copied &&
+                          typeof copied === "string" &&
+                          !copied.startsWith("item:")
+                            ? `Copied (${copied})`
+                            : "Copy as"}
+                        </button>
 
-                      {showCopyMenu && (
-                        <div style={styles.copyMenu}>
-                          <button
-                            onClick={() => copyResult("plain")}
-                            style={styles.copyItem}
-                          >
-                            Plain text
-                          </button>
-                          <button
-                            onClick={() => copyResult("checklist")}
-                            style={styles.copyItem}
-                          >
-                            Checklist
-                          </button>
-                          <button
-                            onClick={() => copyResult("notion")}
-                            style={styles.copyItem}
-                          >
-                            Notion style
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                        {showCopyMenu && (
+                          <div style={styles.copyMenu}>
+                            <button
+                              onClick={() => copyResult("plain")}
+                              style={styles.copyItem}
+                            >
+                              Plain text
+                            </button>
+                            <button
+                              onClick={() => copyResult("checklist")}
+                              style={styles.copyItem}
+                            >
+                              Checklist
+                            </button>
+                            <button
+                              onClick={() => copyResult("notion")}
+                              style={styles.copyItem}
+                            >
+                              Notion style
+                            </button>
+                            <button
+                              onClick={() => copyResult("plain", true)}
+                              style={styles.copyItem}
+                            >
+                              Do now only
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={styles.copyMenuWrap}>
+                        <button
+                          onClick={() => {
+                            setShowExportMenu(!showExportMenu);
+                            setShowCopyMenu(false);
+                          }}
+                          style={styles.copyButton}
+                        >
+                          Export
+                        </button>
+
+                        {showExportMenu && (
+                          <div style={styles.copyMenu}>
+                            <button
+                              onClick={() => exportResult("plain")}
+                              style={styles.copyItem}
+                            >
+                              Download text
+                            </button>
+                            <button
+                              onClick={() => exportResult("checklist")}
+                              style={styles.copyItem}
+                            >
+                              Download checklist
+                            </button>
+                            <button
+                              onClick={() => exportResult("notion")}
+                              style={styles.copyItem}
+                            >
+                              Download notion
+                            </button>
+                            <button
+                              onClick={() => exportResult("plain", true)}
+                              style={styles.copyItem}
+                            >
+                              Download Do now
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -797,7 +894,7 @@ const styles = {
     position: "absolute",
     top: "115%",
     right: 0,
-    minWidth: 150,
+    minWidth: 170,
     background: "rgba(9,15,20,0.96)",
     border: "1px solid rgba(125,211,252,0.14)",
     borderRadius: 12,
@@ -885,7 +982,7 @@ const styles = {
     gap: 8
   },
   itemRowDone: {
-    opacity: 0.92
+    opacity: 0.95
   },
   itemMainButton: {
     flex: 1,
@@ -899,9 +996,9 @@ const styles = {
     textAlign: "left"
   },
   checkCircle: {
-    width: 22,
-    height: 22,
-    minWidth: 22,
+    width: 32,
+    height: 32,
+    minWidth: 32,
     borderRadius: 999,
     border: "1px solid rgba(125,211,252,0.2)",
     background: "rgba(255,255,255,0.03)",
@@ -909,7 +1006,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 13,
+    fontSize: 18,
     fontWeight: 700,
     marginTop: 2,
     boxShadow: "0 0 0 rgba(0,0,0,0)"
