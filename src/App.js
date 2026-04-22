@@ -9,7 +9,6 @@ export default function App() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
   const [doneItems, setDoneItems] = useState(() => {
     try {
       const saved = localStorage.getItem(DONE_STORAGE_KEY);
@@ -138,7 +137,7 @@ export default function App() {
     }
 
     if (act.length > 0) {
-      lines.push(onlyAct ? "Do now" : "Do now");
+      lines.push("Do now");
       act.forEach((item) => lines.push(bullet(item.text)));
       lines.push("");
     }
@@ -186,7 +185,6 @@ export default function App() {
       setResult(null);
       setCopied(false);
       setShowCopyMenu(false);
-      setShowExportMenu(false);
 
       const res = await fetch("/api/clarify", {
         method: "POST",
@@ -230,7 +228,6 @@ export default function App() {
     setError("");
     setCopied(false);
     setShowCopyMenu(false);
-    setShowExportMenu(false);
   }
 
   function clearDoneItems() {
@@ -263,37 +260,19 @@ export default function App() {
     }
   }
 
-  function downloadTextFile(content, filename) {
-    try {
-      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      setShowExportMenu(false);
-    } catch (err) {
-      console.error(err);
-      setError("Error: Could not export file.");
+  function getCopyButtonLabel() {
+    if (!copied || typeof copied !== "string" || copied.startsWith("item:")) {
+      return "Copy";
     }
-  }
 
-  function exportResult(format = "plain", onlyAct = false) {
-    if (!result) return;
+    if (copied === "plain") return "Copied plain text";
+    if (copied === "checklist") return "Copied checklist";
+    if (copied === "notion") return "Copied for Notion";
+    if (copied === "plain-act") return "Copied Do now";
+    if (copied === "checklist-act") return "Copied Do now";
+    if (copied === "notion-act") return "Copied Do now";
 
-    const content = buildFormattedText(format, onlyAct);
-    const suffix = onlyAct ? "-do-now" : "";
-    const filename =
-      format === "checklist"
-        ? `slowflow-checklist${suffix}.txt`
-        : format === "notion"
-        ? `slowflow-notion${suffix}.txt`
-        : `slowflow${suffix}.txt`;
-
-    downloadTextFile(content, filename);
+    return "Copied";
   }
 
   function renderLoadingCard(title, lines = 3) {
@@ -500,93 +479,43 @@ export default function App() {
                   ) : null}
 
                   {hasResult ? (
-                    <>
-                      <div style={styles.copyMenuWrap}>
-                        <button
-                          onClick={() => {
-                            setShowCopyMenu(!showCopyMenu);
-                            setShowExportMenu(false);
-                          }}
-                          style={styles.copyButton}
-                        >
-                          {copied &&
-                          typeof copied === "string" &&
-                          !copied.startsWith("item:")
-                            ? `Copied (${copied})`
-                            : "Copy as"}
-                        </button>
+                    <div style={styles.copyMenuWrap}>
+                      <button
+                        onClick={() => setShowCopyMenu(!showCopyMenu)}
+                        style={styles.copyButton}
+                      >
+                        {getCopyButtonLabel()}
+                      </button>
 
-                        {showCopyMenu && (
-                          <div style={styles.copyMenu}>
-                            <button
-                              onClick={() => copyResult("plain")}
-                              style={styles.copyItem}
-                            >
-                              Plain text
-                            </button>
-                            <button
-                              onClick={() => copyResult("checklist")}
-                              style={styles.copyItem}
-                            >
-                              Checklist
-                            </button>
-                            <button
-                              onClick={() => copyResult("notion")}
-                              style={styles.copyItem}
-                            >
-                              Notion style
-                            </button>
-                            <button
-                              onClick={() => copyResult("plain", true)}
-                              style={styles.copyItem}
-                            >
-                              Do now only
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={styles.copyMenuWrap}>
-                        <button
-                          onClick={() => {
-                            setShowExportMenu(!showExportMenu);
-                            setShowCopyMenu(false);
-                          }}
-                          style={styles.copyButton}
-                        >
-                          Export
-                        </button>
-
-                        {showExportMenu && (
-                          <div style={styles.copyMenu}>
-                            <button
-                              onClick={() => exportResult("plain")}
-                              style={styles.copyItem}
-                            >
-                              Download text
-                            </button>
-                            <button
-                              onClick={() => exportResult("checklist")}
-                              style={styles.copyItem}
-                            >
-                              Download checklist
-                            </button>
-                            <button
-                              onClick={() => exportResult("notion")}
-                              style={styles.copyItem}
-                            >
-                              Download notion
-                            </button>
-                            <button
-                              onClick={() => exportResult("plain", true)}
-                              style={styles.copyItem}
-                            >
-                              Download Do now
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </>
+                      {showCopyMenu && (
+                        <div style={styles.copyMenu}>
+                          <button
+                            onClick={() => copyResult("plain")}
+                            style={styles.copyItem}
+                          >
+                            Copy plain text
+                          </button>
+                          <button
+                            onClick={() => copyResult("checklist")}
+                            style={styles.copyItem}
+                          >
+                            Copy checklist
+                          </button>
+                          <button
+                            onClick={() => copyResult("notion")}
+                            style={styles.copyItem}
+                          >
+                            Copy for Notion
+                          </button>
+                          <button
+                            onClick={() => copyResult("plain", true)}
+                            style={styles.copyItem}
+                          >
+                            Copy Do now only
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -894,7 +823,7 @@ const styles = {
     position: "absolute",
     top: "115%",
     right: 0,
-    minWidth: 170,
+    minWidth: 185,
     background: "rgba(9,15,20,0.96)",
     border: "1px solid rgba(125,211,252,0.14)",
     borderRadius: 12,
