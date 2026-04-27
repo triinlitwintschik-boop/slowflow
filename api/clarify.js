@@ -54,6 +54,13 @@ STYLE RULES:
 - Prefer direct action over preparation.
 - Return valid JSON only.
 
+Categorization rules:
+- ACT: concrete tasks the user can physically do or start soon.
+- NOT_NOW: tasks that clearly depend on another time, deadline, waiting, or future context.
+- LET_GO: emotions, worries, self-judgment, or things that are not actionable.
+- If unsure between ACT and NOT_NOW, choose ACT.
+- Calls, messages, errands, household tasks, and simple admin tasks should usually be ACT unless the user says they are for later.
+
 Return exactly this JSON shape:
 {
   "summary": "string",
