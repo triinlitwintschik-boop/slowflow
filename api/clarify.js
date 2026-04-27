@@ -27,56 +27,29 @@ The user may write:
 - emotions
 - reminders
 - vague thoughts
-- mixed personal and practical notes
 
 Your job:
-1. Write a short, warm summary of what is going on.
-2. Suggest one concrete next step that can be done in under 5 minutes.
-3. Sort the rest into categories:
-   - ACT = do soon / actionable
-   - NOT_NOW = important but not for right now
-   - LET_GO = emotional noise, self-judgment, or things better released
+1. Write a short, warm summary.
+2. Suggest one next step under 5 minutes.
+3. Sort everything else:
 
-CATEGORIZATION RULES:
-- ACT: concrete tasks the user can physically do or start soon.
-- NOT_NOW: tasks that clearly depend on another time, deadline, waiting, or future context.
-- LET_GO: emotions, worries, self-judgment, or things that are not actionable.
-- If unsure between ACT and NOT_NOW, choose ACT.
-- Calls, messages, errands, household tasks, and simple admin tasks should usually be ACT unless the user says they are for later.
-- Do not drop actionable items from the input.
-- Every clear task or reminder from the brain dump must appear in items.
-- If the input says "call Kersti", it must appear as an item.
-- Do not merge separate tasks into the summary only.
+ACT = do now  
+NOT_NOW = later  
+LET_GO = emotional noise  
 
-NEXT STEP RULES:
-- If the user already listed a simple actionable task, reuse one of those as the next step instead of inventing a new one.
-- Do NOT create extra planning steps if a direct action already exists.
-- Prefer the simplest real-world action from the list.
-- Do NOT over-optimize or add planning steps.
-- Prefer direct action over preparation.
+RULES:
+- NEVER drop tasks from input
+- EVERY task must appear in items
+- If unsure → ACT
+- Calls/messages/errands → ACT
+- Do NOT invent tasks
+- Reuse existing tasks for next step
 
-STYLE RULES:
-- Be gentle, calm, and practical.
-- Sound human, not robotic.
-- Do NOT write things like "The user mentioned" or "The user said".
-- Do NOT repeat the whole input back.
-- Keep the summary to 1-2 sentences max.
-- The next step must be specific and realistic.
-- Item text must be short and clean.
-- Preserve the language of the user's input.
-- Return valid JSON only.
-- Do not include markdown fences.
-
-Return exactly this JSON shape:
+Return JSON only:
 {
   "summary": "string",
   "next_step_under_5_min": "string",
-  "items": [
-    {
-      "text": "string",
-      "category": "ACT" | "NOT_NOW" | "LET_GO"
-    }
-  ]
+  "items": [{ "text": "string", "category": "ACT" | "NOT_NOW" | "LET_GO" }]
 }
 
 Brain dump:
@@ -96,7 +69,7 @@ Brain dump:
           {
             role: "system",
             content:
-              "You are a calm thinking assistant that returns only valid JSON."
+              "You return ONLY valid JSON. No explanations."
           },
           {
             role: "user",
@@ -126,118 +99,77 @@ Brain dump:
       parsed = JSON.parse(raw);
     } catch {
       return res.status(500).json({
-        error: "Model did not return valid JSON",
+        error: "Invalid JSON from model",
         raw
       });
     }
 
-    if (
-      !parsed ||
-      typeof parsed.summary !== "string" ||
-      typeof parsed.next_step_under_5_min !== "string" ||
-      !Array.isArray(parsed.items)
-    ) {
-      return res.status(500).json({
-        error: "Model returned JSON in unexpected format",
-        raw: parsed
+    const normalize = (str) =>
+      String(str || "")
+        .toLowerCase()
+        .trim()
+        .replace(/[.?!,]/g, "");
+
+    let items = parsed.items
+      .filter(
+        (i) =>
+          i &&
+          typeof i.text === "string" &&
+          ["ACT", "NOT_NOW", "LET_GO"].includes(i.category)
+      )
+      .map((i) => ({
+        text: i.text.trim(),
+        category: i.category
+      }));
+
+    let nextStep = parsed.next_step_under_5_min?.trim() || "";
+
+    // 🔥 FIX: ensure next step ALWAYS in ACT
+    const normalizedNext = normalize(nextStep);
+
+    const exists = items.some(
+      (i) => normalize(i.text) === normalizedNext
+    );
+
+    if (!exists && nextStep) {
+      items.unshift({
+        text: nextStep,
+        category: "ACT"
+      });
+    } else {
+      items = items.map((i) => {
+        if (normalize(i.text) === normalizedNext) {
+          return { ...i, category: "ACT" };
+        }
+        return i;
       });
     }
 
-    const normalize = (value) =>
-      String(value || "")
-        .toLowerCase()
-        .trim()
-        .replace(/[.?!,]+$/g, "");
-
-    let cleanedItems = parsed.items
-      .filter(
-        (item) =>
-          item &&
-          typeof item.text === "string" &&
-          item.text.trim() &&
-          ["ACT", "NOT_NOW", "LET_GO"].includes(item.category)
-      )
-      .map((item) => ({
-        text: item.text.trim(),
-        category: item.category
-      }));
-
-    let nextStep = parsed.next_step_under_5_min.trim();
-
-    const actItems = cleanedItems.filter((item) => item.category === "ACT");
-
-    const normalize = (str) =>
-  str
-    .toLowerCase()
-    .trim()
-    .replace(/[.?!,]/g, "");
-
-// normalize next step
-const normalizedNext = normalize(nextStep);
-
-// check if exists anywhere
-const existsAnywhere = cleanedItems.some(
-  (item) => normalize(item.text) === normalizedNext
-);
-
-// force it into ACT
-if (!existsAnywhere) {
-  cleanedItems.unshift({
-    text: nextStep,
-    category: "ACT"
-  });
-} else {
-  cleanedItems = cleanedItems.map((item) => {
-    if (normalize(item.text) === normalizedNext) {
-      return { ...item, category: "ACT" };
-    }
-    return item;
-  });
-}
-    );
-
-    if (!nextStepExistsInAct && actItems.length > 0) {
-      const exactAnyItem = cleanedItems.find(
-        (item) => normalize(item.text) === normalize(nextStep)
-      );
-
-      if (exactAnyItem) {
-        cleanedItems = cleanedItems.map((item) =>
-          normalize(item.text) === normalize(nextStep)
-            ? { ...item, category: "ACT" }
-            : item
-        );
-      } else {
-        cleanedItems.unshift({
-          text: nextStep,
-          category: "ACT"
-        });
-      }
+    // fallback if AI gives no next step
+    if (!nextStep) {
+      const firstAct = items.find((i) => i.category === "ACT");
+      if (firstAct) nextStep = firstAct.text;
     }
 
-    if (!nextStep && cleanedItems.some((item) => item.category === "ACT")) {
-      nextStep = cleanedItems.find((item) => item.category === "ACT").text;
-    }
-
+    // remove duplicates
     const seen = new Set();
-    cleanedItems = cleanedItems.filter((item) => {
-      const key = `${normalize(item.text)}::${item.category}`;
+    items = items.filter((i) => {
+      const key = normalize(i.text) + i.category;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
 
-    const cleaned = {
-      summary: parsed.summary.trim(),
+    return res.status(200).json({
+      summary: parsed.summary || "",
       next_step_under_5_min: nextStep,
-      items: cleanedItems
-    };
+      items
+    });
 
-    return res.status(200).json(cleaned);
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({
-      error: error.message || "Something went wrong"
+      error: err.message || "Something went wrong"
     });
   }
 }
