@@ -273,6 +273,17 @@ export default function App() {
     }
   }
 
+  function scrollToInput() {
+    document.getElementById("brain-input")?.scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+
+    setTimeout(() => {
+      document.getElementById("brain-input")?.focus();
+    }, 400);
+  }
+
   function handleKeyDown(e) {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       clarify();
@@ -283,12 +294,6 @@ export default function App() {
     if (!copied || typeof copied !== "string" || copied.startsWith("item:")) {
       return "Copy";
     }
-
-    if (copied === "plain") return "Copied ✓";
-    if (copied === "checklist") return "Copied ✓";
-    if (copied === "notion") return "Copied ✓";
-    if (copied === "plain-act") return "Copied ✓";
-    if (copied === "share-copy") return "Copied ✓";
 
     return "Copied ✓";
   }
@@ -399,17 +404,24 @@ export default function App() {
       <div style={styles.container}>
         <div style={styles.hero}>
           <div style={styles.badge}>SlowFlow</div>
-          <h1 style={styles.title}>Turn mental noise into one clear step</h1>
+
+          <h1 style={styles.title}>When your head is full, start here.</h1>
+
           <p style={styles.subtitle}>
-            Empty your mind, gently sort what matters, and move forward without
-            pressure.
+            Dump everything on your mind. We’ll help you find one clear next
+            step.
           </p>
+
+          <button type="button" onClick={scrollToInput} style={styles.heroButton}>
+            Clear my mind
+          </button>
         </div>
 
         <div style={styles.inputCard}>
           <label style={styles.label}>Brain dump</label>
 
           <textarea
+            id="brain-input"
             placeholder="Write everything on your mind..."
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -431,7 +443,7 @@ export default function App() {
                 ...(loading ? styles.buttonDisabled : {})
               }}
             >
-              {loading ? "Sorting..." : "Clarify"}
+              {loading ? "Sorting..." : "Find my next step"}
             </button>
 
             <button
@@ -467,9 +479,16 @@ export default function App() {
                 <div style={styles.sectionPill}>Summary</div>
               </div>
 
-              <p style={styles.text}>
-                {result?.summary || "Write something and press clarify"}
-              </p>
+              {result?.summary ? (
+                <p style={styles.text}>{result.summary}</p>
+              ) : (
+                <div style={styles.emptyState}>
+                  <div style={styles.emptyTitle}>Nothing here yet.</div>
+                  <div style={styles.emptyText}>
+                    Start by writing what’s on your mind. Even messy is fine.
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ ...styles.card, animation: "floatIn 0.3s ease" }}>
@@ -480,7 +499,7 @@ export default function App() {
 
               <p style={styles.stepBox}>
                 {result?.next_step_under_5_min ||
-                  "We'll suggest a tiny step here"}
+                  "We’ll suggest one clear next step here."}
               </p>
             </div>
 
@@ -560,7 +579,7 @@ export default function App() {
 
               {!hasResult ? (
                 <div style={styles.emptyState}>
-                  <div style={styles.emptyTitle}>Nothing sorted yet</div>
+                  <div style={styles.emptyTitle}>Nothing sorted yet.</div>
                   <div style={styles.emptyText}>
                     Your thoughts will appear here as Do now, Not now, Let go,
                     and Done.
@@ -683,8 +702,20 @@ const styles = {
     fontSize: 14,
     color: "#8ea3b7",
     marginTop: 8,
-    marginBottom: 0,
+    marginBottom: 14,
     lineHeight: 1.6
+  },
+  heroButton: {
+    width: "100%",
+    padding: 14,
+    borderRadius: 14,
+    border: "1px solid rgba(125,211,252,0.18)",
+    background: "rgba(125,211,252,0.08)",
+    color: "#dbeafe",
+    fontWeight: 800,
+    fontSize: 14,
+    boxShadow: "0 0 18px rgba(56,189,248,0.12)",
+    cursor: "pointer"
   },
   inputCard: {
     background: "rgba(255,255,255,0.04)",
