@@ -60,6 +60,8 @@ Categorization rules:
 - LET_GO: emotions, worries, self-judgment, or things that are not actionable.
 - If unsure between ACT and NOT_NOW, choose ACT.
 - Calls, messages, errands, household tasks, and simple admin tasks should usually be ACT unless the user says they are for later.
+- If a clear simple task already exists (like "buy milk"), do NOT create a new abstraction.
+- Prefer selecting or slightly refining an existing task instead of inventing a new one.
 
 Return exactly this JSON shape:
 {
