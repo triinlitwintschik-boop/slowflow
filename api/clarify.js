@@ -16,37 +16,43 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
     }
 
-    const input = String(brainDump).trim();
-
     const prompt = `
 You organize a messy brain dump into calm, useful clarity.
 
-The input may contain:
+The user may write:
 - tasks
 - worries
+- emotions
 - reminders
-- feelings
-- half-finished thoughts
+- vague thoughts
 - mixed personal and practical notes
 
 Your job:
 1. Write a short, warm summary of what is going on.
-2. Suggest ONE concrete next step that can be done in under 5 minutes.
-3. Sort the remaining thoughts into categories:
-   - ACT = actionable soon
-   - NOT_NOW = important, but not for right now
+2. Suggest one concrete next step that can be done in under 5 minutes.
+3. Sort the rest into categories:
+   - ACT = do soon / actionable
+   - NOT_NOW = important but not for right now
    - LET_GO = emotional noise, self-judgment, or things better released
 
-Important rules:
-- Be gentle, calm, practical, and human.
-- Do NOT say things like "The user said" or "The user mentioned".
-- Do NOT repeat the full input back.
-- Summary must be 1-2 short sentences.
-- Next step must be realistic and specific.
+IMPORTANT NEXT STEP RULES:
+- If the user already listed a simple actionable task (like "buy milk", "call someone", "send email"),
+  reuse one of those as the next step instead of inventing a new one.
+- Do NOT create extra planning steps if a direct action already exists.
+- Prefer the simplest real-world action from the list.
+
+STYLE RULES:
+- Be gentle, calm, and practical.
+- Sound human, not robotic.
+- Do NOT write things like "The user mentioned" or "The user said".
+- Do NOT repeat the whole input back.
+- Keep the summary to 1-2 sentences max.
+- The next step must be specific and realistic.
 - Item text must be short and clean.
-- Preserve the language of the input.
+- Preserve the language of the user's input.
+- Do NOT over-optimize or add planning steps.
+- Prefer direct action over preparation.
 - Return valid JSON only.
-- Do not include markdown fences.
 
 Return exactly this JSON shape:
 {
@@ -61,7 +67,7 @@ Return exactly this JSON shape:
 }
 
 Brain dump:
-"""${input}"""
+"""${String(brainDump).trim()}"""
 `;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -72,12 +78,12 @@ Brain dump:
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.4,
+        temperature: 0.3,
         messages: [
           {
             role: "system",
             content:
-              "You are a calm assistant that returns only valid JSON."
+              "You are a calm thinking assistant that returns only valid JSON."
           },
           {
             role: "user",
@@ -105,7 +111,7 @@ Brain dump:
 
     try {
       parsed = JSON.parse(raw);
-    } catch {
+    } catch (err) {
       return res.status(500).json({
         error: "Model did not return valid JSON",
         raw
@@ -124,20 +130,41 @@ Brain dump:
       });
     }
 
+    const cleanedItems = parsed.items
+      .filter(
+        (item) =>
+          item &&
+          typeof item.text === "string" &&
+          ["ACT", "NOT_NOW", "LET_GO"].includes(item.category)
+      )
+      .map((item) => ({
+        text: item.text.trim(),
+        category: item.category
+      }));
+
+    // 🔥 SMART FIX: kui next step pole ACT listis → võta esimene ACT item
+    const normalized = (v) =>
+      String(v || "")
+        .toLowerCase()
+        .trim()
+        .replace(/[.?!,]+$/, "");
+
+    const actItems = cleanedItems.filter((i) => i.category === "ACT");
+
+    let nextStep = parsed.next_step_under_5_min.trim();
+
+    const existsInAct = actItems.some(
+      (item) => normalized(item.text) === normalized(nextStep)
+    );
+
+    if (!existsInAct && actItems.length > 0) {
+      nextStep = actItems[0].text;
+    }
+
     const cleaned = {
       summary: parsed.summary.trim(),
-      next_step_under_5_min: parsed.next_step_under_5_min.trim(),
-      items: parsed.items
-        .filter(
-          (item) =>
-            item &&
-            typeof item.text === "string" &&
-            ["ACT", "NOT_NOW", "LET_GO"].includes(item.category)
-        )
-        .map((item) => ({
-          text: item.text.trim(),
-          category: item.category
-        }))
+      next_step_under_5_min: nextStep,
+      items: cleanedItems
     };
 
     return res.status(200).json(cleaned);
