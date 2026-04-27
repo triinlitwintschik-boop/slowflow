@@ -9,6 +9,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
 
   const [doneItems, setDoneItems] = useState(() => {
     try {
@@ -36,7 +37,6 @@ export default function App() {
 
   function toggleDone(category, textValue) {
     const key = getItemKey(category, textValue);
-
     setDoneItems((prev) => ({
       ...prev,
       [key]: !prev[key]
@@ -110,6 +110,8 @@ export default function App() {
     () => [...actDone, ...notNowDone, ...letGoDone],
     [actDone, notNowDone, letGoDone]
   );
+
+  const currentFocusTask = act[0];
 
   const hasResult = !!result;
   const hasAnyDoneItems = Object.values(doneItems).some(Boolean);
@@ -221,6 +223,7 @@ export default function App() {
       setResult(null);
       setCopied(false);
       setShowCopyMenu(false);
+      setFocusMode(false);
 
       const res = await fetch("/api/clarify", {
         method: "POST",
@@ -262,6 +265,7 @@ export default function App() {
     setError("");
     setCopied(false);
     setShowCopyMenu(false);
+    setFocusMode(false);
   }
 
   function clearDoneItems() {
@@ -296,6 +300,11 @@ export default function App() {
     }
 
     return "Copied ✓";
+  }
+
+  function completeFocusTask() {
+    if (!currentFocusTask) return;
+    toggleDone("ACT", currentFocusTask.text);
   }
 
   function renderLoadingCard(title, lines = 3) {
@@ -503,12 +512,76 @@ export default function App() {
               </p>
             </div>
 
+            {focusMode && hasResult ? (
+              <div style={{ ...styles.focusCard, animation: "floatIn 0.25s ease" }}>
+                <div style={styles.focusTop}>
+                  <div>
+                    <div style={styles.focusEyebrow}>Focus mode</div>
+                    <h3 style={styles.focusTitle}>One thing. Right now.</h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setFocusMode(false)}
+                    style={styles.smallGhostButton}
+                  >
+                    Exit
+                  </button>
+                </div>
+
+                {currentFocusTask ? (
+                  <>
+                    <div style={styles.focusTask}>{currentFocusTask.text}</div>
+
+                    <div style={styles.focusActions}>
+                      <button
+                        type="button"
+                        onClick={() => copySingleItem(currentFocusTask.text)}
+                        style={styles.secondaryFocusButton}
+                      >
+                        Copy
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={completeFocusTask}
+                        style={styles.doneFocusButton}
+                      >
+                        Mark done
+                      </button>
+                    </div>
+
+                    <div style={styles.focusHint}>
+                      Do just this. You can come back for the next one.
+                    </div>
+                  </>
+                ) : (
+                  <div style={styles.emptyState}>
+                    <div style={styles.emptyTitle}>Nothing urgent left.</div>
+                    <div style={styles.emptyText}>
+                      You’ve cleared the Do now list. That counts.
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             <div style={{ ...styles.card, animation: "floatIn 0.35s ease" }}>
               <div style={styles.cardHeader}>
                 <h3 style={styles.cardTitle}>📦 Sorted out</h3>
 
                 <div style={styles.cardActions}>
                   <div style={styles.sectionPill}>Organized</div>
+
+                  {hasResult && act.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setFocusMode(true)}
+                      style={styles.focusButton}
+                    >
+                      Focus
+                    </button>
+                  ) : null}
 
                   {hasAnyDoneItems ? (
                     <button
@@ -822,6 +895,100 @@ const styles = {
     marginBottom: 12,
     border: "1px solid rgba(125,211,252,0.1)",
     boxShadow: "0 12px 28px rgba(0,0,0,0.3)"
+  },
+  focusCard: {
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.12), rgba(255,255,255,0.045))",
+    backdropFilter: "blur(14px)",
+    WebkitBackdropFilter: "blur(14px)",
+    padding: 18,
+    borderRadius: 22,
+    marginBottom: 12,
+    border: "1px solid rgba(125,211,252,0.22)",
+    boxShadow: "0 16px 36px rgba(56,189,248,0.12)"
+  },
+  focusTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 14
+  },
+  focusEyebrow: {
+    fontSize: 11,
+    color: "#7dd3fc",
+    fontWeight: 800,
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em"
+  },
+  focusTitle: {
+    margin: 0,
+    fontSize: 20,
+    color: "#f8fbff",
+    letterSpacing: "-0.02em"
+  },
+  focusTask: {
+    padding: 18,
+    borderRadius: 16,
+    background: "rgba(2,6,8,0.42)",
+    border: "1px solid rgba(125,211,252,0.18)",
+    color: "#f8fbff",
+    fontSize: 20,
+    fontWeight: 800,
+    lineHeight: 1.35,
+    marginBottom: 12
+  },
+  focusActions: {
+    display: "flex",
+    gap: 8
+  },
+  secondaryFocusButton: {
+    flex: 1,
+    padding: 13,
+    borderRadius: 13,
+    border: "1px solid rgba(125,211,252,0.14)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#dbeafe",
+    fontWeight: 800,
+    cursor: "pointer"
+  },
+  doneFocusButton: {
+    flex: 1.4,
+    padding: 13,
+    borderRadius: 13,
+    border: "1px solid rgba(125,211,252,0.2)",
+    background:
+      "linear-gradient(135deg, #0ea5e9 0%, #38bdf8 55%, #7dd3fc 100%)",
+    color: "#041018",
+    fontWeight: 900,
+    cursor: "pointer"
+  },
+  focusHint: {
+    marginTop: 10,
+    color: "#8ea3b7",
+    fontSize: 12,
+    lineHeight: 1.5
+  },
+  smallGhostButton: {
+    border: "1px solid rgba(125,211,252,0.14)",
+    background: "rgba(255,255,255,0.03)",
+    color: "#a8bdd0",
+    borderRadius: 999,
+    padding: "7px 10px",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer"
+  },
+  focusButton: {
+    border: "1px solid rgba(125,211,252,0.22)",
+    background: "rgba(56,189,248,0.1)",
+    color: "#bae6fd",
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer"
   },
   cardHeader: {
     display: "flex",
