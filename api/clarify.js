@@ -166,8 +166,34 @@ Brain dump:
 
     const actItems = cleanedItems.filter((item) => item.category === "ACT");
 
-    const nextStepExistsInAct = actItems.some(
-      (item) => normalize(item.text) === normalize(nextStep)
+    const normalize = (str) =>
+  str
+    .toLowerCase()
+    .trim()
+    .replace(/[.?!,]/g, "");
+
+// normalize next step
+const normalizedNext = normalize(nextStep);
+
+// check if exists anywhere
+const existsAnywhere = cleanedItems.some(
+  (item) => normalize(item.text) === normalizedNext
+);
+
+// force it into ACT
+if (!existsAnywhere) {
+  cleanedItems.unshift({
+    text: nextStep,
+    category: "ACT"
+  });
+} else {
+  cleanedItems = cleanedItems.map((item) => {
+    if (normalize(item.text) === normalizedNext) {
+      return { ...item, category: "ACT" };
+    }
+    return item;
+  });
+}
     );
 
     if (!nextStepExistsInAct && actItems.length > 0) {
