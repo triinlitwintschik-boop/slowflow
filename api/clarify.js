@@ -62,6 +62,10 @@ Categorization rules:
 - Calls, messages, errands, household tasks, and simple admin tasks should usually be ACT unless the user says they are for later.
 - If a clear simple task already exists (like "buy milk"), do NOT create a new abstraction.
 - Prefer selecting or slightly refining an existing task instead of inventing a new one.
+- Do not drop actionable items from the input.
+- Every clear task/reminder from the brain dump must appear in items.
+- If the input says “call Kersti”, it must appear as an item.
+- Do not merge separate tasks into the summary only.
 
 Return exactly this JSON shape:
 {
