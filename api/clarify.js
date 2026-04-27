@@ -16,6 +16,8 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
     }
 
+    const input = String(brainDump).trim();
+
     const prompt = `
 You organize a messy brain dump into calm, useful clarity.
 
@@ -35,11 +37,23 @@ Your job:
    - NOT_NOW = important but not for right now
    - LET_GO = emotional noise, self-judgment, or things better released
 
-IMPORTANT NEXT STEP RULES:
-- If the user already listed a simple actionable task (like "buy milk", "call someone", "send email"),
-  reuse one of those as the next step instead of inventing a new one.
+CATEGORIZATION RULES:
+- ACT: concrete tasks the user can physically do or start soon.
+- NOT_NOW: tasks that clearly depend on another time, deadline, waiting, or future context.
+- LET_GO: emotions, worries, self-judgment, or things that are not actionable.
+- If unsure between ACT and NOT_NOW, choose ACT.
+- Calls, messages, errands, household tasks, and simple admin tasks should usually be ACT unless the user says they are for later.
+- Do not drop actionable items from the input.
+- Every clear task or reminder from the brain dump must appear in items.
+- If the input says "call Kersti", it must appear as an item.
+- Do not merge separate tasks into the summary only.
+
+NEXT STEP RULES:
+- If the user already listed a simple actionable task, reuse one of those as the next step instead of inventing a new one.
 - Do NOT create extra planning steps if a direct action already exists.
 - Prefer the simplest real-world action from the list.
+- Do NOT over-optimize or add planning steps.
+- Prefer direct action over preparation.
 
 STYLE RULES:
 - Be gentle, calm, and practical.
@@ -50,22 +64,8 @@ STYLE RULES:
 - The next step must be specific and realistic.
 - Item text must be short and clean.
 - Preserve the language of the user's input.
-- Do NOT over-optimize or add planning steps.
-- Prefer direct action over preparation.
 - Return valid JSON only.
-
-Categorization rules:
-- ACT: concrete tasks the user can physically do or start soon.
-- NOT_NOW: tasks that clearly depend on another time, deadline, waiting, or future context.
-- LET_GO: emotions, worries, self-judgment, or things that are not actionable.
-- If unsure between ACT and NOT_NOW, choose ACT.
-- Calls, messages, errands, household tasks, and simple admin tasks should usually be ACT unless the user says they are for later.
-- If a clear simple task already exists (like "buy milk"), do NOT create a new abstraction.
-- Prefer selecting or slightly refining an existing task instead of inventing a new one.
-- Do not drop actionable items from the input.
-- Every clear task/reminder from the brain dump must appear in items.
-- If the input says “call Kersti”, it must appear as an item.
-- Do not merge separate tasks into the summary only.
+- Do not include markdown fences.
 
 Return exactly this JSON shape:
 {
@@ -80,7 +80,7 @@ Return exactly this JSON shape:
 }
 
 Brain dump:
-"""${String(brainDump).trim()}"""
+"""${input}"""
 `;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -91,7 +91,7 @@ Brain dump:
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.3,
+        temperature: 0.2,
         messages: [
           {
             role: "system",
@@ -124,7 +124,7 @@ Brain dump:
 
     try {
       parsed = JSON.parse(raw);
-    } catch (err) {
+    } catch {
       return res.status(500).json({
         error: "Model did not return valid JSON",
         raw
@@ -143,11 +143,18 @@ Brain dump:
       });
     }
 
-    const cleanedItems = parsed.items
+    const normalize = (value) =>
+      String(value || "")
+        .toLowerCase()
+        .trim()
+        .replace(/[.?!,]+$/g, "");
+
+    let cleanedItems = parsed.items
       .filter(
         (item) =>
           item &&
           typeof item.text === "string" &&
+          item.text.trim() &&
           ["ACT", "NOT_NOW", "LET_GO"].includes(item.category)
       )
       .map((item) => ({
@@ -155,44 +162,50 @@ Brain dump:
         category: item.category
       }));
 
-    // 🔥 SMART FIX: kui next step pole ACT listis → võta esimene ACT item
-    const normalized = (v) =>
-      String(v || "")
-        .toLowerCase()
-        .trim()
-        .replace(/[.?!,]+$/, "");
-
-    const actItems = cleanedItems.filter((i) => i.category === "ACT");
-
     let nextStep = parsed.next_step_under_5_min.trim();
 
-    const existsInAct = actItems.some(
-      (item) => normalized(item.text) === normalized(nextStep)
+    const actItems = cleanedItems.filter((item) => item.category === "ACT");
+
+    const nextStepExistsInAct = actItems.some(
+      (item) => normalize(item.text) === normalize(nextStep)
     );
 
-    if (!existsInAct && actItems.length > 0) {
-      nextStep = actItems[0].text;
+    if (!nextStepExistsInAct && actItems.length > 0) {
+      const exactAnyItem = cleanedItems.find(
+        (item) => normalize(item.text) === normalize(nextStep)
+      );
+
+      if (exactAnyItem) {
+        cleanedItems = cleanedItems.map((item) =>
+          normalize(item.text) === normalize(nextStep)
+            ? { ...item, category: "ACT" }
+            : item
+        );
+      } else {
+        cleanedItems.unshift({
+          text: nextStep,
+          category: "ACT"
+        });
+      }
     }
+
+    if (!nextStep && cleanedItems.some((item) => item.category === "ACT")) {
+      nextStep = cleanedItems.find((item) => item.category === "ACT").text;
+    }
+
+    const seen = new Set();
+    cleanedItems = cleanedItems.filter((item) => {
+      const key = `${normalize(item.text)}::${item.category}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
     const cleaned = {
       summary: parsed.summary.trim(),
       next_step_under_5_min: nextStep,
       items: cleanedItems
     };
-
-    // ensure next step is included in ACT items
-const next = cleaned.next_step_under_5_min.toLowerCase();
-
-const exists = cleaned.items.some(
-  (item) => item.text.toLowerCase() === next
-);
-
-if (!exists) {
-  cleaned.items.unshift({
-    text: cleaned.next_step_under_5_min,
-    category: "ACT"
-  });
-}
 
     return res.status(200).json(cleaned);
   } catch (error) {
