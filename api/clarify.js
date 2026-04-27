@@ -89,6 +89,8 @@ Brain dump:
 
     const raw = data?.choices?.[0]?.message?.content;
 
+console.log("RAW MODEL RESPONSE:", raw);
+
     if (!raw) {
       return res.status(500).json({ error: "No response from model" });
     }
