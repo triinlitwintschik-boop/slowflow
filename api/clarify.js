@@ -180,6 +180,20 @@ Brain dump:
       items: cleanedItems
     };
 
+    // ensure next step is included in ACT items
+const next = cleaned.next_step_under_5_min.toLowerCase();
+
+const exists = cleaned.items.some(
+  (item) => item.text.toLowerCase() === next
+);
+
+if (!exists) {
+  cleaned.items.unshift({
+    text: cleaned.next_step_under_5_min,
+    category: "ACT"
+  });
+}
+
     return res.status(200).json(cleaned);
   } catch (error) {
     console.error(error);
