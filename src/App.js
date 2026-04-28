@@ -70,11 +70,7 @@ export default function App() {
     return normalizeText(result?.next_step_under_5_min || "");
   }, [result]);
 
-  const actWithoutDuplicate = useMemo(() => {
-    return actRaw.filter(
-      (item) => normalizeText(item.text) !== normalizedNextStep
-    );
-  }, [actRaw, normalizedNextStep]);
+ const actItems = actRaw;
 
   const act = useMemo(
     () => actWithoutDuplicate.filter((item) => !isDone("ACT", item.text)),
