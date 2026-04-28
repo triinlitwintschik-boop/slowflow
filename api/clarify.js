@@ -21,35 +21,36 @@ export default async function handler(req, res) {
     const prompt = `
 You organize a messy brain dump into calm, useful clarity.
 
-The user may write:
-- tasks
-- worries
-- emotions
-- reminders
-- vague thoughts
-
 Your job:
 1. Write a short, warm summary.
 2. Suggest one next step under 5 minutes.
-3. Sort everything else:
-
-ACT = do now  
-NOT_NOW = later  
-LET_GO = emotional noise  
+3. Sort every clear item into categories:
+   - ACT = do now / actionable soon
+   - NOT_NOW = later / important but not now
+   - LET_GO = emotional noise / self-judgment / non-actionable worry
 
 RULES:
-- NEVER drop tasks from input
-- EVERY task must appear in items
-- If unsure → ACT
-- Calls/messages/errands → ACT
-- Do NOT invent tasks
-- Reuse existing tasks for next step
+- Return valid JSON only.
+- Do not include markdown fences.
+- Never drop clear tasks from the input.
+- Every clear task or reminder must appear in items.
+- If unsure between ACT and NOT_NOW, choose ACT.
+- Calls, messages, errands, household tasks, and simple admin tasks should usually be ACT.
+- Do not invent extra planning steps.
+- If the user already gave a simple task, reuse one as the next step.
+- Preserve the language of the user's input.
+- Do not say "the user said" or "the user mentioned".
 
-Return JSON only:
+Return exactly this JSON shape:
 {
   "summary": "string",
   "next_step_under_5_min": "string",
-  "items": [{ "text": "string", "category": "ACT" | "NOT_NOW" | "LET_GO" }]
+  "items": [
+    {
+      "text": "string",
+      "category": "ACT" | "NOT_NOW" | "LET_GO"
+    }
+  ]
 }
 
 Brain dump:
@@ -68,8 +69,7 @@ Brain dump:
         messages: [
           {
             role: "system",
-            content:
-              "You return ONLY valid JSON. No explanations."
+            content: "You return only valid JSON. No explanations."
           },
           {
             role: "user",
@@ -89,82 +89,97 @@ Brain dump:
 
     const raw = data?.choices?.[0]?.message?.content;
 
-console.log("RAW MODEL RESPONSE:", raw);
-
     if (!raw) {
       return res.status(500).json({ error: "No response from model" });
     }
 
-    return res.status(200).json({
-  DEBUG_RAW: raw
-});
+    let parsed;
 
-    const normalize = (str) =>
-      String(str || "")
-        .toLowerCase()
-        .trim()
-        .replace(/[.?!,]/g, "");
-
-    let items = parsed.items
-      .filter(
-        (i) =>
-          i &&
-          typeof i.text === "string" &&
-          ["ACT", "NOT_NOW", "LET_GO"].includes(i.category)
-      )
-      .map((i) => ({
-        text: i.text.trim(),
-        category: i.category
-      }));
-
-    let nextStep = parsed.next_step_under_5_min?.trim() || "";
-
-    // 🔥 FIX: ensure next step ALWAYS in ACT
-    const normalizedNext = normalize(nextStep);
-
-    const exists = items.some(
-      (i) => normalize(i.text) === normalizedNext
-    );
-
-    if (!exists && nextStep) {
-      items.unshift({
-        text: nextStep,
-        category: "ACT"
-      });
-    } else {
-      items = items.map((i) => {
-        if (normalize(i.text) === normalizedNext) {
-          return { ...i, category: "ACT" };
-        }
-        return i;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return res.status(500).json({
+        error: "Model did not return valid JSON",
+        raw
       });
     }
 
-    // fallback if AI gives no next step
+    if (
+      !parsed ||
+      typeof parsed.summary !== "string" ||
+      typeof parsed.next_step_under_5_min !== "string" ||
+      !Array.isArray(parsed.items)
+    ) {
+      return res.status(500).json({
+        error: "Model returned JSON in unexpected format",
+        raw: parsed
+      });
+    }
+
+    const normalize = (value) =>
+      String(value || "")
+        .toLowerCase()
+        .trim()
+        .replace(/[.?!,]+$/g, "");
+
+    let cleanedItems = parsed.items
+      .filter(
+        (item) =>
+          item &&
+          typeof item.text === "string" &&
+          item.text.trim() &&
+          ["ACT", "NOT_NOW", "LET_GO"].includes(item.category)
+      )
+      .map((item) => ({
+        text: item.text.trim(),
+        category: item.category
+      }));
+
+    let nextStep = parsed.next_step_under_5_min.trim();
+
     if (!nextStep) {
-      const firstAct = items.find((i) => i.category === "ACT");
+      const firstAct = cleanedItems.find((item) => item.category === "ACT");
       if (firstAct) nextStep = firstAct.text;
     }
 
-    // remove duplicates
+    const normalizedNext = normalize(nextStep);
+
+    if (normalizedNext) {
+      const existsAnywhere = cleanedItems.some(
+        (item) => normalize(item.text) === normalizedNext
+      );
+
+      if (!existsAnywhere) {
+        cleanedItems.unshift({
+          text: nextStep,
+          category: "ACT"
+        });
+      } else {
+        cleanedItems = cleanedItems.map((item) =>
+          normalize(item.text) === normalizedNext
+            ? { ...item, category: "ACT" }
+            : item
+        );
+      }
+    }
+
     const seen = new Set();
-    items = items.filter((i) => {
-      const key = normalize(i.text) + i.category;
+    cleanedItems = cleanedItems.filter((item) => {
+      const key = `${normalize(item.text)}::${item.category}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
 
     return res.status(200).json({
-      summary: parsed.summary || "",
+      summary: parsed.summary.trim(),
       next_step_under_5_min: nextStep,
-      items
+      items: cleanedItems
     });
-
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error(error);
     return res.status(500).json({
-      error: err.message || "Something went wrong"
+      error: error.message || "Something went wrong"
     });
   }
 }
