@@ -46,6 +46,7 @@ RULES:
 - Creative tasks, reading, learning, training, planning, content creation, and optional self-improvement usually belong in NOT_NOW unless the user clearly says they must be done now.
 - Household chores, errands, messages, calls, and emails can be ACT if they are simple and immediate.
 - next_step_under_5_min must be one of the ACT items when possible.
+- Emails, messages, and calls are usually ACT unless the user clearly says they are for later.
 
 Return exactly this JSON shape:
 {
