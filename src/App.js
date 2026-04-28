@@ -31,10 +31,7 @@ export default function App() {
   });
 
   function normalizeText(value) {
-    return String(value || "")
-      .trim()
-      .toLowerCase()
-      .replace(/[.?!,]+$/g, "");
+    return String(value || "").trim().toLowerCase().replace(/[.?!,]+$/g, "");
   }
 
   function getItemKey(category, textValue) {
@@ -47,11 +44,7 @@ export default function App() {
 
   function toggleDone(category, textValue) {
     const key = getItemKey(category, textValue);
-
-    setDoneItems((prev) => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setDoneItems((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
   useEffect(() => {
@@ -225,7 +218,6 @@ export default function App() {
 
   async function shareResult() {
     if (!result) return;
-
     const output = buildFormattedText("plain");
 
     try {
@@ -307,17 +299,6 @@ export default function App() {
     try {
       localStorage.removeItem(DONE_STORAGE_KEY);
     } catch {}
-  }
-
-  function scrollToInput() {
-    document.getElementById("brain-input")?.scrollIntoView({
-      behavior: "smooth",
-      block: "center"
-    });
-
-    setTimeout(() => {
-      document.getElementById("brain-input")?.focus();
-    }, 400);
   }
 
   function handleKeyDown(e) {
@@ -452,10 +433,6 @@ export default function App() {
             Dump everything on your mind. We’ll help you find one clear next
             step.
           </p>
-
-          <button type="button" onClick={scrollToInput} style={styles.heroButton}>
-            Clear my mind
-          </button>
         </div>
 
         <div style={styles.inputCard}>
@@ -811,9 +788,7 @@ const styles = {
     fontFamily:
       'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
   },
-  hero: {
-    marginBottom: 18
-  },
+  hero: { marginBottom: 18 },
   badge: {
     display: "inline-block",
     padding: "6px 10px",
@@ -839,18 +814,6 @@ const styles = {
     marginTop: 8,
     marginBottom: 14,
     lineHeight: 1.6
-  },
-  heroButton: {
-    width: "100%",
-    padding: 14,
-    borderRadius: 14,
-    border: "1px solid rgba(125,211,252,0.18)",
-    background: "rgba(125,211,252,0.08)",
-    color: "#dbeafe",
-    fontWeight: 800,
-    fontSize: 14,
-    boxShadow: "0 0 18px rgba(56,189,248,0.12)",
-    cursor: "pointer"
   },
   inputCard: {
     background: "rgba(255,255,255,0.04)",
@@ -891,19 +854,9 @@ const styles = {
     marginBottom: 12,
     gap: 8
   },
-  hint: {
-    fontSize: 11,
-    color: "#6f879b"
-  },
-  charCount: {
-    fontSize: 11,
-    color: "#6f879b",
-    whiteSpace: "nowrap"
-  },
-  buttonRow: {
-    display: "flex",
-    gap: 8
-  },
+  hint: { fontSize: 11, color: "#6f879b" },
+  charCount: { fontSize: 11, color: "#6f879b", whiteSpace: "nowrap" },
+  buttonRow: { display: "flex", gap: 8 },
   button: {
     flex: 1,
     padding: 16,
@@ -916,11 +869,7 @@ const styles = {
     fontSize: 14,
     boxShadow: "0 0 22px rgba(56,189,248,0.26)"
   },
-  buttonDisabled: {
-    opacity: 0.7,
-    cursor: "default",
-    boxShadow: "none"
-  },
+  buttonDisabled: { opacity: 0.7, cursor: "default", boxShadow: "none" },
   resetButton: {
     padding: "16px 14px",
     borderRadius: 14,
@@ -930,15 +879,8 @@ const styles = {
     fontSize: 14,
     color: "#d6e6f5"
   },
-  resetButtonDisabled: {
-    opacity: 0.7,
-    cursor: "default"
-  },
-  privacyNote: {
-    marginTop: 12,
-    fontSize: 11,
-    color: "#6f879b"
-  },
+  resetButtonDisabled: { opacity: 0.7, cursor: "default" },
+  privacyNote: { marginTop: 12, fontSize: 11, color: "#6f879b" },
   errorCard: {
     background: "rgba(127,29,29,0.18)",
     color: "#fecaca",
@@ -1001,10 +943,7 @@ const styles = {
     lineHeight: 1.35,
     marginBottom: 12
   },
-  focusActions: {
-    display: "flex",
-    gap: 8
-  },
+  focusActions: { display: "flex", gap: 8 },
   secondaryFocusButton: {
     flex: 1,
     padding: 13,
@@ -1026,12 +965,7 @@ const styles = {
     fontWeight: 900,
     cursor: "pointer"
   },
-  focusHint: {
-    marginTop: 10,
-    color: "#8ea3b7",
-    fontSize: 12,
-    lineHeight: 1.5
-  },
+  focusHint: { marginTop: 10, color: "#8ea3b7", fontSize: 12, lineHeight: 1.5 },
   smallGhostButton: {
     border: "1px solid rgba(125,211,252,0.14)",
     background: "rgba(255,255,255,0.03)",
@@ -1059,11 +993,7 @@ const styles = {
     gap: 10,
     marginBottom: 10
   },
-  cardTitle: {
-    fontSize: 15,
-    margin: 0,
-    color: "#f8fbff"
-  },
+  cardTitle: { fontSize: 15, margin: 0, color: "#f8fbff" },
   cardActions: {
     display: "flex",
     alignItems: "center",
@@ -1099,9 +1029,7 @@ const styles = {
     fontWeight: 700,
     cursor: "pointer"
   },
-  copyMenuWrap: {
-    position: "relative"
-  },
+  copyMenuWrap: { position: "relative" },
   copyButton: {
     border: "1px solid rgba(125,211,252,0.16)",
     background: "rgba(255,255,255,0.03)",
@@ -1136,12 +1064,7 @@ const styles = {
     color: "#dbeafe",
     cursor: "pointer"
   },
-  text: {
-    fontSize: 14,
-    color: "#c5d4e3",
-    margin: 0,
-    lineHeight: 1.7
-  },
+  text: { fontSize: 14, color: "#c5d4e3", margin: 0, lineHeight: 1.7 },
   stepBox: {
     fontSize: 15,
     fontWeight: 700,
@@ -1152,34 +1075,17 @@ const styles = {
     margin: 0,
     border: "1px solid rgba(125,211,252,0.12)"
   },
-  emptyState: {
-    padding: "6px 0 2px"
-  },
-  emptyTitle: {
-    fontSize: 14,
-    fontWeight: 700,
-    color: "#d6e6f5",
-    marginBottom: 4
-  },
-  emptyText: {
-    fontSize: 13,
-    color: "#8ea3b7",
-    lineHeight: 1.6
-  },
-  group: {
-    marginTop: 14
-  },
+  emptyState: { padding: "6px 0 2px" },
+  emptyTitle: { fontSize: 14, fontWeight: 700, color: "#d6e6f5", marginBottom: 4 },
+  emptyText: { fontSize: 13, color: "#8ea3b7", lineHeight: 1.6 },
+  group: { marginTop: 14 },
   groupTop: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8
   },
-  groupTitle: {
-    fontSize: 13,
-    margin: 0,
-    color: "#dbeafe"
-  },
+  groupTitle: { fontSize: 13, margin: 0, color: "#dbeafe" },
   groupCount: {
     minWidth: 22,
     height: 22,
@@ -1192,16 +1098,8 @@ const styles = {
     justifyContent: "center",
     border: "1px solid rgba(125,211,252,0.14)"
   },
-  list: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8
-  },
-  itemRow: {
-    display: "flex",
-    alignItems: "stretch",
-    gap: 8
-  },
+  list: { display: "flex", flexDirection: "column", gap: 8 },
+  itemRow: { display: "flex", alignItems: "stretch", gap: 8 },
   itemMainButton: {
     flex: 1,
     display: "flex",
@@ -1279,15 +1177,8 @@ const styles = {
     color: "#a5c7df",
     fontSize: 14
   },
-  itemDone: {
-    textDecoration: "line-through",
-    color: "#6f879b"
-  },
-  skeletonWrap: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8
-  },
+  itemDone: { textDecoration: "line-through", color: "#6f879b" },
+  skeletonWrap: { display: "flex", flexDirection: "column", gap: 8 },
   skeletonLine: {
     height: 12,
     borderRadius: 999,
@@ -1295,11 +1186,7 @@ const styles = {
       "linear-gradient(90deg, rgba(125,211,252,0.06) 25%, rgba(255,255,255,0.08) 50%, rgba(125,211,252,0.06) 75%)",
     backgroundSize: "200% 100%"
   },
-  historyList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8
-  },
+  historyList: { display: "flex", flexDirection: "column", gap: 8 },
   historyItem: {
     width: "100%",
     textAlign: "left",
@@ -1309,11 +1196,7 @@ const styles = {
     background: "rgba(255,255,255,0.03)",
     cursor: "pointer"
   },
-  historyDate: {
-    fontSize: 11,
-    color: "#6f879b",
-    marginBottom: 5
-  },
+  historyDate: { fontSize: 11, color: "#6f879b", marginBottom: 5 },
   historyText: {
     fontSize: 13,
     color: "#dbeafe",
