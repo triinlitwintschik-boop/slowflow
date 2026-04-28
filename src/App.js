@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 const DONE_STORAGE_KEY = "slowflow-done-items";
+const HISTORY_STORAGE_KEY = "slowflow-sessions";
 
 export default function App() {
   const [text, setText] = useState("");
@@ -10,6 +11,15 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+
+  const [history, setHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem(HISTORY_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [doneItems, setDoneItems] = useState(() => {
     try {
@@ -47,10 +57,40 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem(DONE_STORAGE_KEY, JSON.stringify(doneItems));
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [doneItems]);
+
+  function saveSession(input, output) {
+    const newSession = {
+      id: Date.now(),
+      input,
+      result: output,
+      createdAt: new Date().toISOString()
+    };
+
+    const updated = [newSession, ...history].slice(0, 5);
+    setHistory(updated);
+
+    try {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+  }
+
+  function loadSession(session) {
+    setText(session.input);
+    setResult(session.result);
+    setError("");
+    setCopied(false);
+    setShowCopyMenu(false);
+    setFocusMode(false);
+  }
+
+  function clearHistory() {
+    setHistory([]);
+    try {
+      localStorage.removeItem(HISTORY_STORAGE_KEY);
+    } catch {}
+  }
 
   const actRaw = useMemo(
     () => result?.items?.filter((item) => item.category === "ACT") || [],
@@ -179,7 +219,6 @@ export default function App() {
 
   async function copyResult(format = "plain", onlyAct = false) {
     if (!result) return;
-
     const output = buildFormattedText(format, onlyAct);
     await copyToClipboard(output, onlyAct ? `${format}-act` : format);
   }
@@ -209,6 +248,8 @@ export default function App() {
       return;
     }
 
+    const input = text.trim();
+
     try {
       setLoading(true);
       setError("");
@@ -222,7 +263,7 @@ export default function App() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ brainDump: text.trim() })
+        body: JSON.stringify({ brainDump: input })
       });
 
       const contentType = res.headers.get("content-type") || "";
@@ -243,6 +284,7 @@ export default function App() {
 
       const data = await res.json();
       setResult(data);
+      saveSession(input, data);
     } catch (err) {
       console.error(err);
       setError("Error: " + err.message);
@@ -264,9 +306,7 @@ export default function App() {
     setDoneItems({});
     try {
       localStorage.removeItem(DONE_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
 
   function scrollToInput() {
@@ -722,6 +762,35 @@ export default function App() {
             </div>
           </>
         )}
+
+        {history.length > 0 ? (
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h3 style={styles.cardTitle}>🕘 Recent sessions</h3>
+
+              <button type="button" onClick={clearHistory} style={styles.copyButton}>
+                Clear
+              </button>
+            </div>
+
+            <div style={styles.historyList}>
+              {history.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => loadSession(session)}
+                  style={styles.historyItem}
+                >
+                  <div style={styles.historyDate}>
+                    {new Date(session.createdAt).toLocaleString()}
+                  </div>
+
+                  <div style={styles.historyText}>{session.input}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div style={styles.footer}>No pressure. Just one step at a time.</div>
       </div>
@@ -1225,6 +1294,32 @@ const styles = {
     background:
       "linear-gradient(90deg, rgba(125,211,252,0.06) 25%, rgba(255,255,255,0.08) 50%, rgba(125,211,252,0.06) 75%)",
     backgroundSize: "200% 100%"
+  },
+  historyList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8
+  },
+  historyItem: {
+    width: "100%",
+    textAlign: "left",
+    padding: 12,
+    borderRadius: 14,
+    border: "1px solid rgba(125,211,252,0.12)",
+    background: "rgba(255,255,255,0.03)",
+    cursor: "pointer"
+  },
+  historyDate: {
+    fontSize: 11,
+    color: "#6f879b",
+    marginBottom: 5
+  },
+  historyText: {
+    fontSize: 13,
+    color: "#dbeafe",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
   },
   footer: {
     textAlign: "center",
