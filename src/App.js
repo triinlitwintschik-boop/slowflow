@@ -78,6 +78,15 @@ export default function App() {
     setFocusMode(false);
   }
 
+  function deleteSession(id) {
+    const updated = history.filter((session) => session.id !== id);
+    setHistory(updated);
+
+    try {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+  }
+
   function clearHistory() {
     setHistory([]);
     try {
@@ -743,27 +752,49 @@ export default function App() {
         {history.length > 0 ? (
           <div style={styles.card}>
             <div style={styles.cardHeader}>
-              <h3 style={styles.cardTitle}>🕘 Recent sessions</h3>
+              <div>
+                <h3 style={styles.cardTitle}>🕘 Recent sessions</h3>
+                <div style={styles.historySubtext}>Saved on this device</div>
+              </div>
 
               <button type="button" onClick={clearHistory} style={styles.copyButton}>
-                Clear
+                Clear all
               </button>
             </div>
 
             <div style={styles.historyList}>
               {history.map((session) => (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => loadSession(session)}
-                  style={styles.historyItem}
-                >
-                  <div style={styles.historyDate}>
-                    {new Date(session.createdAt).toLocaleString()}
-                  </div>
+                <div key={session.id} style={styles.historyItem}>
+                  <button
+                    type="button"
+                    onClick={() => loadSession(session)}
+                    style={styles.historyMainButton}
+                  >
+                    <div style={styles.historyDate}>
+                      {new Date(session.createdAt).toLocaleString()}
+                    </div>
 
-                  <div style={styles.historyText}>{session.input}</div>
-                </button>
+                    <div style={styles.historyText}>{session.input}</div>
+                  </button>
+
+                  <div style={styles.historyActions}>
+                    <button
+                      type="button"
+                      onClick={() => loadSession(session)}
+                      style={styles.historyActionButton}
+                    >
+                      Load
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => deleteSession(session.id)}
+                      style={styles.historyDeleteButton}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -1186,14 +1217,24 @@ const styles = {
       "linear-gradient(90deg, rgba(125,211,252,0.06) 25%, rgba(255,255,255,0.08) 50%, rgba(125,211,252,0.06) 75%)",
     backgroundSize: "200% 100%"
   },
+  historySubtext: {
+    marginTop: 3,
+    fontSize: 11,
+    color: "#6f879b"
+  },
   historyList: { display: "flex", flexDirection: "column", gap: 8 },
   historyItem: {
-    width: "100%",
-    textAlign: "left",
     padding: 12,
     borderRadius: 14,
     border: "1px solid rgba(125,211,252,0.12)",
-    background: "rgba(255,255,255,0.03)",
+    background: "rgba(255,255,255,0.03)"
+  },
+  historyMainButton: {
+    width: "100%",
+    textAlign: "left",
+    border: "none",
+    background: "transparent",
+    padding: 0,
     cursor: "pointer"
   },
   historyDate: { fontSize: 11, color: "#6f879b", marginBottom: 5 },
@@ -1203,6 +1244,33 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap"
+  },
+  historyActions: {
+    display: "flex",
+    gap: 8,
+    marginTop: 10
+  },
+  historyActionButton: {
+    flex: 1,
+    border: "1px solid rgba(125,211,252,0.14)",
+    background: "rgba(125,211,252,0.06)",
+    color: "#dbeafe",
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer"
+  },
+  historyDeleteButton: {
+    flex: 1,
+    border: "1px solid rgba(248,113,113,0.18)",
+    background: "rgba(127,29,29,0.12)",
+    color: "#fecaca",
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer"
   },
   footer: {
     textAlign: "center",
