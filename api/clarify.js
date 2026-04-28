@@ -39,6 +39,10 @@ RULES:
 - Do not invent extra planning steps.
 - If the user already gave a simple task, reuse one as the next step.
 - Preserve the language of the user's input.
+- Do not translate item text.
+- Keep task text in the same language and wording as the user wrote it when possible.
+- Do not add a period, question mark, or exclamation mark at the end of next_step_under_5_min.
+- Do not add a period, question mark, or exclamation mark at the end of item text.
 - Do not say "the user said" or "the user mentioned".
 
 Return exactly this JSON shape:
@@ -65,7 +69,7 @@ Brain dump:
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.2,
+        temperature: 0.15,
         messages: [
           {
             role: "system",
@@ -116,11 +120,13 @@ Brain dump:
       });
     }
 
-    const normalize = (value) =>
+    const cleanText = (value) =>
       String(value || "")
-        .toLowerCase()
         .trim()
-        .replace(/[.?!,]+$/g, "");
+        .replace(/[.?!]+$/g, "");
+
+    const normalize = (value) =>
+      cleanText(value).toLowerCase().replace(/[,\s]+/g, " ");
 
     let cleanedItems = parsed.items
       .filter(
@@ -131,11 +137,11 @@ Brain dump:
           ["ACT", "NOT_NOW", "LET_GO"].includes(item.category)
       )
       .map((item) => ({
-        text: item.text.trim(),
+        text: cleanText(item.text),
         category: item.category
       }));
 
-    let nextStep = parsed.next_step_under_5_min.trim();
+    let nextStep = cleanText(parsed.next_step_under_5_min);
 
     if (!nextStep) {
       const firstAct = cleanedItems.find((item) => item.category === "ACT");
@@ -172,8 +178,8 @@ Brain dump:
     });
 
     return res.status(200).json({
-      summary: parsed.summary.trim(),
-      next_step_under_5_min: nextStep,
+      summary: cleanText(parsed.summary),
+      next_step_under_5_min: cleanText(nextStep),
       items: cleanedItems
     });
   } catch (error) {
