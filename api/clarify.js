@@ -34,7 +34,11 @@ RULES:
 - Do not include markdown fences.
 - Never drop clear tasks from the input.
 - Every clear task or reminder must appear in items.
-- If unsure between ACT and NOT_NOW, choose ACT.
+- Do not put everything into ACT.
+- ACT should be only the clearest, most immediate, practical next actions.
+- NOT_NOW should include tasks that are useful but not urgent, creative, longer, optional, or better for later.
+- If there are many tasks, choose only 1-3 most immediate tasks as ACT and put the rest into NOT_NOW.
+- Creative tasks like making videos, reading, learning, training, planning, or general self-improvement usually belong in NOT_NOW unless the user clearly says they must be done now.
 - Calls, messages, errands, household tasks, and simple admin tasks should usually be ACT.
 - Do not invent extra planning steps.
 - If the user already gave a simple task, reuse one as the next step.
