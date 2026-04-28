@@ -95,16 +95,9 @@ console.log("RAW MODEL RESPONSE:", raw);
       return res.status(500).json({ error: "No response from model" });
     }
 
-    let parsed;
-
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return res.status(500).json({
-        error: "Invalid JSON from model",
-        raw
-      });
-    }
+    return res.status(200).json({
+  DEBUG_RAW: raw
+});
 
     const normalize = (str) =>
       String(str || "")
