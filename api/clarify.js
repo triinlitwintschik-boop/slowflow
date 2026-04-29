@@ -40,13 +40,16 @@ RULES:
 - Do not add a period, question mark, or exclamation mark at the end of next_step_under_5_min.
 - Do not add a period, question mark, or exclamation mark at the end of item text.
 - Do not say "the user said" or "the user mentioned".
-- ACT must contain maximum 3 items.
-- If there are more than 3 actionable tasks, put only the 1-3 most immediate, simple, practical tasks in ACT.
+- ACT should usually contain 1-3 items.
+- If there are more than 3 actionable tasks, put only the most immediate, simple, practical tasks in ACT.
 - Put the rest of the actionable tasks into NOT_NOW.
 - Creative tasks, reading, learning, training, planning, content creation, and optional self-improvement usually belong in NOT_NOW unless the user clearly says they must be done now.
 - Household chores, errands, messages, calls, and emails can be ACT if they are simple and immediate.
+- Emails, messages, and calls are usually ACT unless clearly not urgent.
+- Appointment or scheduling tasks are usually ACT, regardless of language.
+- Doctor, dentist, therapist, meeting, booking, reservation, appointment, calendar, or time-slot tasks should be ACT.
+- Estonian examples like "arstiaeg", "pane aeg", "broneeri aeg", "lepi aeg kokku", "kohtumine", "hambaarst", "arsti juurde", and "helista arstile" should be ACT.
 - next_step_under_5_min must be one of the ACT items when possible.
-- Emails, messages, and calls are usually ACT unless the user clearly says they are for later.
 
 Return exactly this JSON shape:
 {
@@ -131,6 +134,82 @@ Brain dump:
     const normalize = (value) =>
       cleanText(value).toLowerCase().replace(/[,\s]+/g, " ");
 
+    const isAppointmentOrScheduling = (value) => {
+      const text = normalize(value);
+
+      const keywords = [
+        "doctor",
+        "dentist",
+        "therapist",
+        "appointment",
+        "meeting",
+        "book appointment",
+        "schedule",
+        "booking",
+        "reservation",
+        "reserve",
+        "calendar",
+        "time slot",
+        "call doctor",
+        "call dentist",
+        "arst",
+        "arsti",
+        "arstile",
+        "arstiaeg",
+        "arsti aeg",
+        "arsti juurde",
+        "hambaarst",
+        "hambaarsti",
+        "terapeut",
+        "teraapia",
+        "kohtumine",
+        "broneeri",
+        "broneerida",
+        "broneering",
+        "pane aeg",
+        "panna aeg",
+        "lepi aeg",
+        "leppida aeg",
+        "aeg kokku",
+        "helista arstile",
+        "helista hambaarstile"
+      ];
+
+      return keywords.some((keyword) => text.includes(keyword));
+    };
+
+    const isCommunication = (value) => {
+      const text = normalize(value);
+
+      const keywords = [
+        "email",
+        "emails",
+        "reply",
+        "message",
+        "messages",
+        "call",
+        "text",
+        "sms",
+        "e-mail",
+        "e-mails",
+        "kirjuta",
+        "kirjutan",
+        "vasta",
+        "vastata",
+        "e-kiri",
+        "e-kirjad",
+        "e-kirjadele",
+        "meil",
+        "meilid",
+        "sõnum",
+        "sõnumid",
+        "helista",
+        "kõne"
+      ];
+
+      return keywords.some((keyword) => text.includes(keyword));
+    };
+
     let cleanedItems = parsed.items
       .filter(
         (item) =>
@@ -144,23 +223,50 @@ Brain dump:
         category: item.category
       }));
 
-    let actItems = cleanedItems.filter((item) => item.category === "ACT");
-    const overflowActItems = actItems.slice(3);
+    cleanedItems = cleanedItems.map((item) => {
+      if (item.category === "LET_GO") return item;
 
-    if (overflowActItems.length > 0) {
-      const overflowSet = new Set(overflowActItems.map((item) => normalize(item.text)));
+      if (isAppointmentOrScheduling(item.text) || isCommunication(item.text)) {
+        return { ...item, category: "ACT" };
+      }
+
+      return item;
+    });
+
+    let actItems = cleanedItems.filter((item) => item.category === "ACT");
+    const protectedActKeys = new Set(
+      actItems
+        .filter(
+          (item) =>
+            isAppointmentOrScheduling(item.text) || isCommunication(item.text)
+        )
+        .map((item) => normalize(item.text))
+    );
+
+    if (actItems.length > 3) {
+      let actCount = 0;
 
       cleanedItems = cleanedItems.map((item) => {
-        if (item.category === "ACT" && overflowSet.has(normalize(item.text))) {
-          return { ...item, category: "NOT_NOW" };
+        if (item.category !== "ACT") return item;
+
+        const key = normalize(item.text);
+        const isProtected = protectedActKeys.has(key);
+
+        if (isProtected) {
+          return item;
         }
 
-        return item;
+        actCount += 1;
+
+        if (actCount <= 3) {
+          return item;
+        }
+
+        return { ...item, category: "NOT_NOW" };
       });
     }
 
     let nextStep = cleanText(parsed.next_step_under_5_min);
-
     actItems = cleanedItems.filter((item) => item.category === "ACT");
 
     if (!nextStep && actItems.length > 0) {
@@ -174,19 +280,37 @@ Brain dump:
         (item) => normalize(item.text) === normalizedNext
       );
 
-      if (matchingItem && matchingItem.category !== "ACT" && actItems.length < 3) {
-        cleanedItems = cleanedItems.map((item) =>
-          normalize(item.text) === normalizedNext
-            ? { ...item, category: "ACT" }
-            : item
-        );
+      if (matchingItem && matchingItem.category !== "ACT") {
+        const actCount = cleanedItems.filter((item) => item.category === "ACT")
+          .length;
+
+        if (
+          actCount < 3 ||
+          isAppointmentOrScheduling(matchingItem.text) ||
+          isCommunication(matchingItem.text)
+        ) {
+          cleanedItems = cleanedItems.map((item) =>
+            normalize(item.text) === normalizedNext
+              ? { ...item, category: "ACT" }
+              : item
+          );
+        }
       }
 
-      if (!matchingItem && actItems.length < 3) {
-        cleanedItems.unshift({
-          text: nextStep,
-          category: "ACT"
-        });
+      if (!matchingItem) {
+        const actCount = cleanedItems.filter((item) => item.category === "ACT")
+          .length;
+
+        if (
+          actCount < 3 ||
+          isAppointmentOrScheduling(nextStep) ||
+          isCommunication(nextStep)
+        ) {
+          cleanedItems.unshift({
+            text: nextStep,
+            category: "ACT"
+          });
+        }
       }
 
       actItems = cleanedItems.filter((item) => item.category === "ACT");
