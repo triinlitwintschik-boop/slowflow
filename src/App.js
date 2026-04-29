@@ -442,6 +442,8 @@ export default function App() {
             Dump everything on your mind. We’ll help you find one clear next
             step.
           </p>
+
+          <p style={styles.punchline}>Stop overthinking. Start moving.</p>
         </div>
 
         <div style={styles.inputCard}>
@@ -449,7 +451,7 @@ export default function App() {
 
           <textarea
             id="brain-input"
-            placeholder="Write everything on your mind..."
+            placeholder="Buy milk, call Kersti, reply to emails, clean kitchen..."
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -471,7 +473,7 @@ export default function App() {
                 ...(loading ? styles.buttonDisabled : {})
               }}
             >
-              {loading ? "Sorting..." : "Find my next step"}
+              {loading ? "Sorting..." : "Clear my mind"}
             </button>
 
             <button
@@ -843,8 +845,15 @@ const styles = {
     fontSize: 14,
     color: "#8ea3b7",
     marginTop: 8,
-    marginBottom: 14,
+    marginBottom: 8,
     lineHeight: 1.6
+  },
+  punchline: {
+    fontSize: 13,
+    color: "#bae6fd",
+    marginTop: 0,
+    marginBottom: 14,
+    fontWeight: 700
   },
   inputCard: {
     background: "rgba(255,255,255,0.04)",
