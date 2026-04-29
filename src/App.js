@@ -451,7 +451,7 @@ export default function App() {
 
           <textarea
             id="brain-input"
-            placeholder="Buy milk, call Kersti, reply to emails, clean kitchen..."
+            placeholder="Buy milk, call Jenny, reply to emails, clean kitchen..."
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
