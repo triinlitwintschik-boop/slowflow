@@ -25,25 +25,26 @@ Your job:
 1. Write a short, warm summary.
 2. Suggest one next step under 5 minutes.
 3. Sort every clear item into categories:
-   - ACT = the most immediate practical actions
-   - NOT_NOW = useful but less urgent, longer, creative, optional, self-care, chores, or better for later
+   - ACT = only the most immediate practical actions
+   - NOT_NOW = useful but less urgent, longer, optional, self-care, chores, errands, creative work, or better for later
    - LET_GO = emotional noise, self-judgment, or non-actionable worry
 
-CORE PRIORITIZATION RULES:
+IMPORTANT PRIORITIZATION:
 - Do NOT put everything into ACT.
-- ACT should usually contain 1-3 items.
-- If many tasks seem urgent, choose only the most impactful 1-3.
-- Use ACT for tasks that are time-sensitive, unblock something, require another person, or are quick practical obligations.
-- Use NOT_NOW for longer tasks, optional tasks, creative work, self-care, chores, exercise, reading, learning, planning, and general “nice to do” items.
-- Use LET_GO only for worries, guilt, self-criticism, vague pressure, or things that are not actionable.
+- ACT should contain 1-3 items maximum.
+- ACT should be reserved for things that reduce pressure immediately.
+- Prefer communication and scheduling tasks for ACT.
+- If there are appointments, bookings, calls, messages, or emails, choose those before errands or chores.
+- Groceries, buying milk, cleaning, laundry, walking, exercise, reading, training, content creation, and general chores usually belong in NOT_NOW unless the user clearly says they are urgent or must happen today.
+- next_step_under_5_min must be one of the ACT items when possible.
+- If there is an appointment/scheduling task, it should usually be the next step.
 
 STRONG ACT RULES:
-- Emails, messages, and calls are usually ACT unless clearly not urgent.
-- Appointment or scheduling tasks are usually ACT, regardless of language.
+- Appointment or scheduling tasks are ACT, regardless of language.
 - Doctor, dentist, therapist, meeting, booking, reservation, appointment, calendar, or time-slot tasks should be ACT.
 - Estonian examples like "arstiaeg", "pane aeg", "broneeri aeg", "lepi aeg kokku", "kohtumine", "hambaarst", "arsti juurde", and "helista arstile" should be ACT.
+- Emails, messages, and calls are usually ACT unless clearly not urgent.
 - Buying tickets for a specific event can be ACT if it seems time-sensitive.
-- next_step_under_5_min must be one of the ACT items when possible.
 
 LANGUAGE AND TEXT RULES:
 - Return valid JSON only.
@@ -81,7 +82,7 @@ Brain dump:
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.1,
+        temperature: 0.05,
         messages: [
           {
             role: "system",
@@ -118,11 +119,12 @@ Brain dump:
 
     try {
       parsed = JSON.parse(cleanedRaw);
-    } catch (error) {
+    } catch {
       console.error("JSON parse failed. Raw model output:", raw);
 
       return res.status(200).json({
-        summary: "I could not organize that clearly this time. Try again with a shorter brain dump",
+        summary:
+          "I could not organize that clearly this time. Try again with a shorter brain dump",
         next_step_under_5_min: "Try again with a shorter brain dump",
         items: []
       });
@@ -135,7 +137,8 @@ Brain dump:
       !Array.isArray(parsed.items)
     ) {
       return res.status(200).json({
-        summary: "I could not organize that clearly this time. Try again with a shorter brain dump",
+        summary:
+          "I could not organize that clearly this time. Try again with a shorter brain dump",
         next_step_under_5_min: "Try again with a shorter brain dump",
         items: []
       });
@@ -149,128 +152,132 @@ Brain dump:
     const normalize = (value) =>
       cleanText(value).toLowerCase().replace(/[,\s]+/g, " ");
 
-    const isAppointmentOrScheduling = (value) => {
+    const includesAny = (value, keywords) => {
       const text = normalize(value);
-
-      const keywords = [
-        "doctor",
-        "dentist",
-        "therapist",
-        "appointment",
-        "meeting",
-        "book appointment",
-        "schedule",
-        "booking",
-        "reservation",
-        "reserve",
-        "calendar",
-        "time slot",
-        "buy ticket",
-        "buy tickets",
-        "tickets",
-        "arst",
-        "arsti",
-        "arstile",
-        "arstiaeg",
-        "arsti aeg",
-        "arsti juurde",
-        "hambaarst",
-        "hambaarsti",
-        "terapeut",
-        "teraapia",
-        "kohtumine",
-        "broneeri",
-        "broneerida",
-        "broneering",
-        "pane aeg",
-        "panna aeg",
-        "lepi aeg",
-        "leppida aeg",
-        "aeg kokku",
-        "osta pilet",
-        "osta piletid",
-        "kinopilet",
-        "kinopiletid",
-        "helista arstile",
-        "helista hambaarstile"
-      ];
-
       return keywords.some((keyword) => text.includes(keyword));
     };
 
-    const isCommunication = (value) => {
-      const text = normalize(value);
+    const appointmentKeywords = [
+      "doctor",
+      "dentist",
+      "therapist",
+      "appointment",
+      "meeting",
+      "book appointment",
+      "schedule",
+      "booking",
+      "reservation",
+      "reserve",
+      "calendar",
+      "time slot",
+      "arst",
+      "arsti",
+      "arstile",
+      "arstiaeg",
+      "arsti aeg",
+      "arsti juurde",
+      "hambaarst",
+      "hambaarsti",
+      "terapeut",
+      "teraapia",
+      "kohtumine",
+      "broneeri",
+      "broneerida",
+      "broneering",
+      "pane aeg",
+      "panna aeg",
+      "lepi aeg",
+      "leppida aeg",
+      "aeg kokku"
+    ];
 
-      const keywords = [
-        "email",
-        "emails",
-        "reply",
-        "message",
-        "messages",
-        "call",
-        "text",
-        "sms",
-        "e-mail",
-        "e-mails",
-        "kirjuta",
-        "kirjutan",
-        "vasta",
-        "vastata",
-        "e-kiri",
-        "e-kirjad",
-        "e-kirjadele",
-        "meil",
-        "meilid",
-        "sõnum",
-        "sõnumid",
-        "helista",
-        "kõne"
-      ];
+    const communicationKeywords = [
+      "email",
+      "emails",
+      "reply",
+      "message",
+      "messages",
+      "call",
+      "text",
+      "sms",
+      "e-mail",
+      "e-mails",
+      "kirjuta",
+      "kirjutan",
+      "vasta",
+      "vastata",
+      "e-kiri",
+      "e-kirjad",
+      "e-kirjadele",
+      "meil",
+      "meilid",
+      "sõnum",
+      "sõnumid",
+      "helista",
+      "kõne"
+    ];
 
-      return keywords.some((keyword) => text.includes(keyword));
-    };
+    const ticketKeywords = [
+      "ticket",
+      "tickets",
+      "buy ticket",
+      "buy tickets",
+      "osta pilet",
+      "osta piletid",
+      "kinopilet",
+      "kinopiletid"
+    ];
 
-    const isUsuallyNotNow = (value) => {
-      const text = normalize(value);
+    const notNowKeywords = [
+      "milk",
+      "groceries",
+      "grocery",
+      "clean",
+      "laundry",
+      "walk",
+      "exercise",
+      "workout",
+      "gym",
+      "train",
+      "read",
+      "reading",
+      "video",
+      "tiktok",
+      "plan",
+      "learn",
+      "study",
+      "meditate",
+      "stretch",
+      "piim",
+      "piima",
+      "toidupood",
+      "poest",
+      "osta piima",
+      "korista",
+      "koristada",
+      "köök",
+      "kööki",
+      "pesu",
+      "jalutama",
+      "jaluta",
+      "trenn",
+      "trenni",
+      "treeni",
+      "loe",
+      "lugeda",
+      "raamat",
+      "video",
+      "tiktok",
+      "planeeri",
+      "õpi",
+      "mediteeri",
+      "venita"
+    ];
 
-      const keywords = [
-        "walk",
-        "exercise",
-        "workout",
-        "gym",
-        "train",
-        "read",
-        "reading",
-        "clean",
-        "laundry",
-        "video",
-        "tiktok",
-        "plan",
-        "learn",
-        "study",
-        "meditate",
-        "stretch",
-        "jalutama",
-        "jaluta",
-        "trenn",
-        "trenni",
-        "treeni",
-        "loe",
-        "lugeda",
-        "raamat",
-        "korista",
-        "koristada",
-        "pesu",
-        "video",
-        "tiktok",
-        "planeeri",
-        "õpi",
-        "mediteeri",
-        "venita"
-      ];
-
-      return keywords.some((keyword) => text.includes(keyword));
-    };
+    const isAppointment = (value) => includesAny(value, appointmentKeywords);
+    const isCommunication = (value) => includesAny(value, communicationKeywords);
+    const isTicket = (value) => includesAny(value, ticketKeywords);
+    const isUsuallyNotNow = (value) => includesAny(value, notNowKeywords);
 
     let cleanedItems = parsed.items
       .filter(
@@ -288,7 +295,11 @@ Brain dump:
     cleanedItems = cleanedItems.map((item) => {
       if (item.category === "LET_GO") return item;
 
-      if (isAppointmentOrScheduling(item.text) || isCommunication(item.text)) {
+      if (
+        isAppointment(item.text) ||
+        isCommunication(item.text) ||
+        isTicket(item.text)
+      ) {
         return { ...item, category: "ACT" };
       }
 
@@ -299,105 +310,66 @@ Brain dump:
       return item;
     });
 
+    const scoreItem = (item) => {
+      if (item.category === "LET_GO") return -100;
+      if (isAppointment(item.text)) return 100;
+      if (isCommunication(item.text)) return 90;
+      if (isTicket(item.text)) return 80;
+      if (isUsuallyNotNow(item.text)) return 10;
+      return 40;
+    };
+
+    const actionableItems = cleanedItems.filter(
+      (item) => item.category !== "LET_GO"
+    );
+
+    const sortedByPriority = [...actionableItems].sort(
+      (a, b) => scoreItem(b) - scoreItem(a)
+    );
+
+    const actKeys = new Set(
+      sortedByPriority
+        .filter((item) => scoreItem(item) >= 40)
+        .slice(0, 3)
+        .map((item) => normalize(item.text))
+    );
+
+    cleanedItems = cleanedItems.map((item) => {
+      if (item.category === "LET_GO") return item;
+
+      if (actKeys.has(normalize(item.text))) {
+        return { ...item, category: "ACT" };
+      }
+
+      return { ...item, category: "NOT_NOW" };
+    });
+
     let actItems = cleanedItems.filter((item) => item.category === "ACT");
 
-    if (actItems.length > 3) {
-      const protectedItems = actItems.filter(
-        (item) =>
-          isAppointmentOrScheduling(item.text) || isCommunication(item.text)
+    if (actItems.length === 0 && actionableItems.length > 0) {
+      const best = sortedByPriority[0];
+
+      cleanedItems = cleanedItems.map((item) =>
+        normalize(item.text) === normalize(best.text)
+          ? { ...item, category: "ACT" }
+          : item
       );
 
-      const normalActItems = actItems.filter(
-        (item) =>
-          !isAppointmentOrScheduling(item.text) && !isCommunication(item.text)
-      );
-
-      const keepActKeys = new Set(
-        [...protectedItems, ...normalActItems]
-          .slice(0, 3)
-          .map((item) => normalize(item.text))
-      );
-
-      cleanedItems = cleanedItems.map((item) => {
-        if (item.category !== "ACT") return item;
-
-        if (keepActKeys.has(normalize(item.text))) {
-          return item;
-        }
-
-        return { ...item, category: "NOT_NOW" };
-      });
+      actItems = cleanedItems.filter((item) => item.category === "ACT");
     }
 
-    actItems = cleanedItems.filter((item) => item.category === "ACT");
+    let nextStep = actItems[0]?.text || cleanText(parsed.next_step_under_5_min);
 
-    if (actItems.length === 0 && cleanedItems.length > 0) {
-      const firstActionable = cleanedItems.find(
-        (item) => item.category !== "LET_GO"
-      );
+    const appointmentAct = actItems.find((item) => isAppointment(item.text));
+    const communicationAct = actItems.find((item) => isCommunication(item.text));
+    const ticketAct = actItems.find((item) => isTicket(item.text));
 
-      if (firstActionable) {
-        cleanedItems = cleanedItems.map((item) =>
-          normalize(item.text) === normalize(firstActionable.text)
-            ? { ...item, category: "ACT" }
-            : item
-        );
-      }
-    }
-
-    actItems = cleanedItems.filter((item) => item.category === "ACT");
-
-    let nextStep = cleanText(parsed.next_step_under_5_min);
-
-    if (!nextStep && actItems.length > 0) {
-      nextStep = actItems[0].text;
-    }
-
-    const normalizedNext = normalize(nextStep);
-
-    if (normalizedNext) {
-      const matchingItem = cleanedItems.find(
-        (item) => normalize(item.text) === normalizedNext
-      );
-
-      if (matchingItem && matchingItem.category !== "ACT") {
-        const actCount = cleanedItems.filter((item) => item.category === "ACT")
-          .length;
-
-        if (
-          actCount < 3 ||
-          isAppointmentOrScheduling(matchingItem.text) ||
-          isCommunication(matchingItem.text)
-        ) {
-          cleanedItems = cleanedItems.map((item) =>
-            normalize(item.text) === normalizedNext
-              ? { ...item, category: "ACT" }
-              : item
-          );
-        }
-      }
-
-      if (!matchingItem) {
-        const actCount = cleanedItems.filter((item) => item.category === "ACT")
-          .length;
-
-        if (
-          actCount < 3 ||
-          isAppointmentOrScheduling(nextStep) ||
-          isCommunication(nextStep)
-        ) {
-          cleanedItems.unshift({
-            text: nextStep,
-            category: "ACT"
-          });
-        }
-      }
-    }
-
-    actItems = cleanedItems.filter((item) => item.category === "ACT");
-
-    if (!actItems.some((item) => normalize(item.text) === normalize(nextStep))) {
-      nextStep = actItems[0]?.text || nextStep;
+    if (appointmentAct) {
+      nextStep = appointmentAct.text;
+    } else if (communicationAct) {
+      nextStep = communicationAct.text;
+    } else if (ticketAct) {
+      nextStep = ticketAct.text;
     }
 
     const seen = new Set();
