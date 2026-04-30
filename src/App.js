@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const DONE_STORAGE_KEY = "slowflow-done-items";
 const HISTORY_STORAGE_KEY = "slowflow-sessions";
@@ -11,6 +11,10 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(true);
+
+  const recognitionRef = useRef(null);
 
   const [history, setHistory] = useState(() => {
     try {
@@ -29,6 +33,49 @@ export default function App() {
       return {};
     }
   });
+
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setVoiceSupported(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = navigator.language || "en-US";
+
+    recognition.onresult = (event) => {
+      let transcript = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        transcript += event.results[i][0].transcript;
+      }
+
+      setText((prev) => {
+        const spacer = prev.trim() ? " " : "";
+        return `${prev}${spacer}${transcript}`.trimStart();
+      });
+    };
+
+    recognition.onerror = () => {
+      setListening(false);
+      setError("Voice input stopped. You can try again or type instead.");
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      recognition.stop();
+    };
+  }, []);
 
   function normalizeText(value) {
     return String(value || "").trim().toLowerCase().replace(/[.?!,]+$/g, "");
@@ -92,6 +139,28 @@ export default function App() {
     try {
       localStorage.removeItem(HISTORY_STORAGE_KEY);
     } catch {}
+  }
+
+  function toggleVoiceInput() {
+    setError("");
+
+    if (!voiceSupported || !recognitionRef.current) {
+      setError("Voice input is not supported in this browser. Try Chrome.");
+      return;
+    }
+
+    if (listening) {
+      recognitionRef.current.stop();
+      setListening(false);
+      return;
+    }
+
+    try {
+      recognitionRef.current.start();
+      setListening(true);
+    } catch {
+      setListening(false);
+    }
   }
 
   const actRaw = useMemo(
@@ -245,8 +314,13 @@ export default function App() {
 
   async function clarify() {
     if (!text.trim()) {
-      setError("Please write a few thoughts first.");
+      setError("Please write or say a few thoughts first.");
       return;
+    }
+
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setListening(false);
     }
 
     const input = text.trim();
@@ -295,6 +369,11 @@ export default function App() {
   }
 
   function resetAll() {
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setListening(false);
+    }
+
     setText("");
     setResult(null);
     setError("");
@@ -381,12 +460,7 @@ export default function App() {
             {done ? "✓" : ""}
           </div>
 
-          <div
-            style={{
-              ...baseStyle,
-              ...(done ? styles.itemDone : {})
-            }}
-          >
+          <div style={{ ...baseStyle, ...(done ? styles.itemDone : {}) }}>
             {textValue}
           </div>
         </button>
@@ -447,11 +521,26 @@ export default function App() {
         </div>
 
         <div style={styles.inputCard}>
-          <label style={styles.label}>Brain dump</label>
+          <div style={styles.labelRow}>
+            <label style={styles.label}>Brain dump</label>
+
+            <button
+              type="button"
+              onClick={toggleVoiceInput}
+              disabled={!voiceSupported || loading}
+              style={{
+                ...styles.voiceButton,
+                ...(listening ? styles.voiceButtonActive : {}),
+                ...(!voiceSupported || loading ? styles.voiceButtonDisabled : {})
+              }}
+            >
+              {listening ? "Listening..." : "🎙 Speak"}
+            </button>
+          </div>
 
           <textarea
             id="brain-input"
-            placeholder="Buy milk, call Jenny, reply to emails, clean kitchen..."
+            placeholder="Buy milk, book doctor appointment, reply to emails, clean kitchen..."
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -459,7 +548,13 @@ export default function App() {
           />
 
           <div style={styles.inputMeta}>
-            <div style={styles.hint}>Cmd/Ctrl + Enter to clarify</div>
+            <div style={styles.hint}>
+              {voiceSupported
+                ? listening
+                  ? "Speak freely. Tap Listening... to stop."
+                  : "Type or use voice. Cmd/Ctrl + Enter to clarify."
+                : "Voice input is not supported in this browser."}
+            </div>
             <div style={styles.charCount}>{text.trim().length} chars</div>
           </div>
 
@@ -516,7 +611,8 @@ export default function App() {
                 <div style={styles.emptyState}>
                   <div style={styles.emptyTitle}>Nothing here yet.</div>
                   <div style={styles.emptyText}>
-                    Start by writing what’s on your mind. Even messy is fine.
+                    Start by writing or saying what’s on your mind. Even messy
+                    is fine.
                   </div>
                 </div>
               )}
@@ -865,12 +961,38 @@ const styles = {
     border: "1px solid rgba(125,211,252,0.12)",
     boxShadow: "0 14px 34px rgba(0,0,0,0.35)"
   },
+  labelRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8
+  },
   label: {
     display: "block",
     fontSize: 13,
     fontWeight: 700,
-    color: "#d6e6f5",
-    marginBottom: 8
+    color: "#d6e6f5"
+  },
+  voiceButton: {
+    border: "1px solid rgba(125,211,252,0.18)",
+    background: "rgba(125,211,252,0.08)",
+    color: "#dbeafe",
+    borderRadius: 999,
+    padding: "7px 10px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+    whiteSpace: "nowrap"
+  },
+  voiceButtonActive: {
+    background: "rgba(56,189,248,0.2)",
+    color: "#ffffff",
+    boxShadow: "0 0 16px rgba(56,189,248,0.22)"
+  },
+  voiceButtonDisabled: {
+    opacity: 0.45,
+    cursor: "not-allowed"
   },
   textarea: {
     width: "100%",
