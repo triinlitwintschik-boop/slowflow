@@ -1,1 +1,22 @@
-
+{
+  "short_name": "SlowFlow",
+  "name": "SlowFlow",
+  "description": "Clear your mind and find one next step.",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#020406",
+  "background_color": "#020406",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "logo192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
