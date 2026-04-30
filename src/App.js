@@ -11,6 +11,7 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [animatingDoneKey, setAnimatingDoneKey] = useState("");
 
   const [history, setHistory] = useState(() => {
     try {
@@ -44,7 +45,19 @@ export default function App() {
 
   function toggleDone(category, textValue) {
     const key = getItemKey(category, textValue);
-    setDoneItems((prev) => ({ ...prev, [key]: !prev[key] }));
+    const currentlyDone = !!doneItems[key];
+
+    if (currentlyDone) {
+      setDoneItems((prev) => ({ ...prev, [key]: false }));
+      return;
+    }
+
+    setAnimatingDoneKey(key);
+
+    setTimeout(() => {
+      setDoneItems((prev) => ({ ...prev, [key]: true }));
+      setAnimatingDoneKey("");
+    }, 220);
   }
 
   useEffect(() => {
@@ -178,13 +191,13 @@ export default function App() {
     }
 
     if (act.length > 0) {
-      lines.push("Do now");
+      lines.push("Do today");
       act.forEach((item) => lines.push(bullet(item.text)));
       lines.push("");
     }
 
     if (!onlyAct && notNow.length > 0) {
-      lines.push("Not now");
+      lines.push("Can wait");
       notNow.forEach((item) => lines.push(bullet(item.text)));
       lines.push("");
     }
@@ -355,6 +368,8 @@ export default function App() {
 
   function renderItem(textValue, variant, category, doneSection = false) {
     const done = isDone(category, textValue);
+    const key = getItemKey(category, textValue);
+    const isAnimating = animatingDoneKey === key;
 
     const baseStyle =
       variant === "soft"
@@ -366,7 +381,13 @@ export default function App() {
         : styles.item;
 
     return (
-      <div key={`${category}-${textValue}`} style={styles.itemRow}>
+      <div
+        key={`${category}-${textValue}`}
+        style={{
+          ...styles.itemRow,
+          ...(isAnimating ? styles.itemRowDoneAnimation : {})
+        }}
+      >
         <button
           type="button"
           onClick={() => toggleDone(category, textValue)}
@@ -375,10 +396,10 @@ export default function App() {
           <div
             style={{
               ...styles.checkCircle,
-              ...(done ? styles.checkCircleDone : {})
+              ...(done || isAnimating ? styles.checkCircleDone : {})
             }}
           >
-            {done ? "✓" : ""}
+            {done || isAnimating ? "✓" : ""}
           </div>
 
           <div style={{ ...baseStyle, ...(done ? styles.itemDone : {}) }}>
@@ -423,6 +444,21 @@ export default function App() {
           to {
             opacity: 1;
             transform: translateY(0);
+          }
+        }
+
+        @keyframes donePop {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(0.96);
+            opacity: 0.7;
+          }
+          100% {
+            transform: scale(1.02);
+            opacity: 1;
           }
         }
       `}</style>
@@ -578,7 +614,7 @@ export default function App() {
                   <div style={styles.emptyState}>
                     <div style={styles.emptyTitle}>Nothing urgent left.</div>
                     <div style={styles.emptyText}>
-                      You’ve cleared the Do now list. That counts.
+                      You’ve cleared the Do today list. That counts.
                     </div>
                   </div>
                 )}
@@ -651,7 +687,7 @@ export default function App() {
                               onClick={() => copyResult("plain", true)}
                               style={styles.copyItem}
                             >
-                              Copy Do now only
+                              Copy Do today only
                             </button>
                           </div>
                         ) : null}
@@ -673,8 +709,8 @@ export default function App() {
                 <div style={styles.emptyState}>
                   <div style={styles.emptyTitle}>Nothing sorted yet.</div>
                   <div style={styles.emptyText}>
-                    Your thoughts will appear here as Do now, Not now, Let go,
-                    and Done.
+                    Your thoughts will appear here as Do today, Can wait, Let
+                    go, and Done.
                   </div>
                 </div>
               ) : null}
@@ -682,7 +718,7 @@ export default function App() {
               {act.length > 0 ? (
                 <div style={styles.group}>
                   <div style={styles.groupTop}>
-                    <h4 style={styles.groupTitle}>🚀 Do now</h4>
+                    <h4 style={styles.groupTitle}>🚀 Do today</h4>
                     <div style={styles.groupCount}>{act.length}</div>
                   </div>
 
@@ -695,7 +731,7 @@ export default function App() {
               {notNow.length > 0 ? (
                 <div style={styles.group}>
                   <div style={styles.groupTop}>
-                    <h4 style={styles.groupTitle}>🕓 Not now</h4>
+                    <h4 style={styles.groupTitle}>🕓 Can wait</h4>
                     <div style={styles.groupCount}>{notNow.length}</div>
                   </div>
 
@@ -1135,6 +1171,9 @@ const styles = {
   },
   list: { display: "flex", flexDirection: "column", gap: 8 },
   itemRow: { display: "flex", alignItems: "stretch", gap: 8 },
+  itemRowDoneAnimation: {
+    animation: "donePop 0.22s ease"
+  },
   itemMainButton: {
     flex: 1,
     display: "flex",
@@ -1159,7 +1198,8 @@ const styles = {
     justifyContent: "center",
     fontSize: 18,
     fontWeight: 700,
-    marginTop: 2
+    marginTop: 2,
+    transition: "all 0.2s ease"
   },
   checkCircleDone: {
     color: "#7dd3fc",
