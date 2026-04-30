@@ -1,398 +1,180 @@
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
   try {
-    const { brainDump } = req.body || {};
+    const { text } = req.body;
 
-    if (!brainDump || !String(brainDump).trim()) {
-      return res.status(400).json({ error: "Missing brainDump" });
+    if (!text) {
+      return res.status(400).json({ error: "No text provided" });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-      return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
-    }
-
-    const input = String(brainDump).trim();
-
-    const prompt = `
-You organize a messy brain dump into calm, useful clarity.
-
-Your job:
-1. Write a short, warm summary.
-2. Suggest one next step under 5 minutes.
-3. Sort every clear item into categories:
-   - ACT = only the most immediate practical actions
-   - NOT_NOW = useful but less urgent, longer, optional, self-care, chores, errands, creative work, or better for later
-   - LET_GO = emotional noise, self-judgment, or non-actionable worry
-
-IMPORTANT PRIORITIZATION:
-- Do NOT put everything into ACT.
-- ACT should contain 1-3 items maximum.
-- ACT should be reserved for things that reduce pressure immediately.
-- Prefer communication and scheduling tasks for ACT.
-- If there are appointments, bookings, calls, messages, or emails, choose those before errands or chores.
-- Groceries, buying milk, cleaning, laundry, walking, exercise, reading, training, content creation, and general chores usually belong in NOT_NOW unless the user clearly says they are urgent or must happen today.
-- next_step_under_5_min must be one of the ACT items when possible.
-- If there is an appointment/scheduling task, it should usually be the next step.
-
-STRONG ACT RULES:
-- Appointment or scheduling tasks are ACT, regardless of language.
-- Doctor, dentist, therapist, meeting, booking, reservation, appointment, calendar, or time-slot tasks should be ACT.
-- Estonian examples like "arstiaeg", "pane aeg", "broneeri aeg", "lepi aeg kokku", "kohtumine", "hambaarst", "arsti juurde", and "helista arstile" should be ACT.
-- Emails, messages, and calls are usually ACT unless clearly not urgent.
-- Buying tickets for a specific event can be ACT if it seems time-sensitive.
-
-LANGUAGE AND TEXT RULES:
-- Return valid JSON only.
-- Do not include markdown fences.
-- Never drop clear tasks from the input.
-- Every clear task or reminder must appear in items.
-- Do not invent extra tasks.
-- Do not translate item text.
-- Keep task text in the same language and wording as the user wrote it when possible.
-- Do not add a period, question mark, or exclamation mark at the end of next_step_under_5_min.
-- Do not add a period, question mark, or exclamation mark at the end of item text.
-- Do not say "the user said" or "the user mentioned".
-
-Return exactly this JSON shape:
-{
-  "summary": "string",
-  "next_step_under_5_min": "string",
-  "items": [
-    {
-      "text": "string",
-      "category": "ACT" | "NOT_NOW" | "LET_GO"
-    }
-  ]
-}
-
-Brain dump:
-"""${input}"""
-`;
-
+    // === AI CALL ===
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.05,
         messages: [
           {
             role: "system",
-            content: "You return only valid JSON. No explanations."
+            content: `
+You are a calm, helpful assistant that organizes messy thoughts into simple actions.
+
+IMPORTANT:
+- Detect the language of the user input and respond in the SAME language.
+- Keep wording natural in that language.
+
+Return JSON only.
+
+Structure:
+{
+  "summary": "short calming summary",
+  "nextStep": "one very small action",
+  "tasks": [
+    { "text": "...", "category": "ACT" | "LATER" }
+  ]
+}
+
+Rules:
+- "ACT" = important OR time-sensitive OR mental load reducing
+- "LATER" = can wait, low urgency
+
+STRONG ACT RULES:
+- Appointments, bookings, deadlines → ACT
+- Communication (calls, emails, messages) → ACT
+- Tickets, reservations → ACT
+- Payment and bills → ACT
+
+Examples:
+- "pane arsti aeg" → ACT
+- "helista emale" → ACT
+- "osta kinopilet" → ACT
+- "maksa arved" → ACT
+
+Keep nextStep simple and under 5 minutes if possible.
+No punctuation at the end of nextStep.
+`,
           },
           {
             role: "user",
-            content: prompt
-          }
-        ]
-      })
+            content: text,
+          },
+        ],
+        temperature: 0.3,
+      }),
     });
 
-    const openAiData = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: openAiData?.error?.message || "OpenAI request failed"
-      });
-    }
-
-    const raw = openAiData?.choices?.[0]?.message?.content;
-
-    if (!raw) {
-      return res.status(500).json({ error: "No response from model" });
-    }
-
-    const cleanedRaw = String(raw)
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
-
+    const data = await response.json();
     let parsed;
 
     try {
-      parsed = JSON.parse(cleanedRaw);
+      parsed = JSON.parse(data.choices[0].message.content);
     } catch {
-      console.error("JSON parse failed. Raw model output:", raw);
-
-      return res.status(200).json({
-        summary:
-          "I could not organize that clearly this time. Try again with a shorter brain dump",
-        next_step_under_5_min: "Try again with a shorter brain dump",
-        items: []
-      });
+      return res.status(500).json({ error: "Failed to parse AI response" });
     }
 
-    if (
-      !parsed ||
-      typeof parsed.summary !== "string" ||
-      typeof parsed.next_step_under_5_min !== "string" ||
-      !Array.isArray(parsed.items)
-    ) {
-      return res.status(200).json({
-        summary:
-          "I could not organize that clearly this time. Try again with a shorter brain dump",
-        next_step_under_5_min: "Try again with a shorter brain dump",
-        items: []
-      });
-    }
+    // === PRIORITIZATION LOGIC ===
 
-    const cleanText = (value) =>
-      String(value || "")
-        .trim()
-        .replace(/[.?!]+$/g, "");
-
-    const normalize = (value) =>
-      cleanText(value).toLowerCase().replace(/[,\s]+/g, " ");
-
-    const includesAny = (value, keywords) => {
-      const text = normalize(value);
-      return keywords.some((keyword) => text.includes(keyword));
+    const includesAny = (text, keywords) => {
+      const lower = text.toLowerCase();
+      return keywords.some((k) => lower.includes(k));
     };
 
     const appointmentKeywords = [
+      "appointment",
+      "book",
+      "schedule",
       "doctor",
       "dentist",
-      "therapist",
-      "appointment",
       "meeting",
-      "book appointment",
-      "schedule",
-      "booking",
-      "reservation",
       "reserve",
-      "calendar",
-      "time slot",
-      "arst",
-      "arsti",
-      "arstile",
-      "arstiaeg",
-      "arsti aeg",
-      "arsti juurde",
-      "hambaarst",
-      "hambaarsti",
-      "terapeut",
-      "teraapia",
-      "kohtumine",
-      "broneeri",
-      "broneerida",
-      "broneering",
       "pane aeg",
-      "panna aeg",
-      "lepi aeg",
-      "leppida aeg",
-      "aeg kokku"
+      "broneeri",
+      "arsti aeg",
+      "hambaarst",
     ];
 
     const communicationKeywords = [
-      "email",
-      "emails",
-      "reply",
-      "message",
-      "messages",
       "call",
+      "email",
+      "reply",
       "text",
-      "sms",
-      "e-mail",
-      "e-mails",
-      "kirjuta",
-      "kirjutan",
-      "vasta",
-      "vastata",
-      "e-kiri",
-      "e-kirjad",
-      "e-kirjadele",
-      "meil",
-      "meilid",
-      "sõnum",
-      "sõnumid",
+      "message",
       "helista",
-      "kõne"
+      "kirjuta",
+      "vasta",
+      "sõnum",
     ];
 
     const ticketKeywords = [
       "ticket",
       "tickets",
-      "buy ticket",
-      "buy tickets",
-      "osta pilet",
-      "osta piletid",
+      "book ticket",
+      "reservation",
+      "pilet",
       "kinopilet",
-      "kinopiletid"
     ];
 
-    const notNowKeywords = [
-      "milk",
-      "groceries",
-      "grocery",
-      "clean",
-      "laundry",
-      "walk",
-      "exercise",
-      "workout",
-      "gym",
-      "train",
-      "read",
-      "reading",
-      "video",
-      "tiktok",
-      "plan",
-      "learn",
-      "study",
-      "meditate",
-      "stretch",
-      "piim",
-      "piima",
-      "toidupood",
-      "poest",
-      "osta piima",
-      "korista",
-      "koristada",
-      "köök",
-      "kööki",
-      "pesu",
-      "jalutama",
-      "jaluta",
-      "trenn",
-      "trenni",
-      "treeni",
-      "loe",
-      "lugeda",
-      "raamat",
-      "video",
-      "tiktok",
-      "planeeri",
-      "õpi",
-      "mediteeri",
-      "venita"
+    const paymentKeywords = [
+      "pay",
+      "bill",
+      "bills",
+      "invoice",
+      "rent",
+      "electricity",
+      "arve",
+      "arved",
+      "maksa",
+      "tasu",
+      "üür",
+      "elekter",
     ];
 
-    const isAppointment = (value) => includesAny(value, appointmentKeywords);
-    const isCommunication = (value) => includesAny(value, communicationKeywords);
-    const isTicket = (value) => includesAny(value, ticketKeywords);
-    const isUsuallyNotNow = (value) => includesAny(value, notNowKeywords);
+    const isAppointment = (t) => includesAny(t, appointmentKeywords);
+    const isCommunication = (t) => includesAny(t, communicationKeywords);
+    const isTicket = (t) => includesAny(t, ticketKeywords);
+    const isPayment = (t) => includesAny(t, paymentKeywords);
 
-    let cleanedItems = parsed.items
-      .filter(
-        (item) =>
-          item &&
-          typeof item.text === "string" &&
-          item.text.trim() &&
-          ["ACT", "NOT_NOW", "LET_GO"].includes(item.category)
-      )
-      .map((item) => ({
-        text: cleanText(item.text),
-        category: item.category
-      }));
+    // Score fallback (kui AI eksib)
+    const scoreItem = (text) => {
+      if (isAppointment(text)) return 100;
+      if (isCommunication(text)) return 95;
+      if (isTicket(text)) return 90;
+      if (isPayment(text)) return 85;
 
-    cleanedItems = cleanedItems.map((item) => {
-      if (item.category === "LET_GO") return item;
+      if (text.includes("clean") || text.includes("korista")) return 40;
+      if (text.includes("walk") || text.includes("jaluta")) return 30;
 
+      return 50;
+    };
+
+    const tasks = parsed.tasks.map((item) => {
       if (
         isAppointment(item.text) ||
         isCommunication(item.text) ||
-        isTicket(item.text)
+        isTicket(item.text) ||
+        isPayment(item.text)
       ) {
         return { ...item, category: "ACT" };
       }
 
-      if (isUsuallyNotNow(item.text)) {
-        return { ...item, category: "NOT_NOW" };
-      }
-
-      return item;
+      const score = scoreItem(item.text);
+      return {
+        ...item,
+        category: score >= 70 ? "ACT" : "LATER",
+      };
     });
 
-    const scoreItem = (item) => {
-      if (item.category === "LET_GO") return -100;
-      if (isAppointment(item.text)) return 100;
-      if (isCommunication(item.text)) return 90;
-      if (isTicket(item.text)) return 80;
-      if (isUsuallyNotNow(item.text)) return 10;
-      return 40;
-    };
-
-    const actionableItems = cleanedItems.filter(
-      (item) => item.category !== "LET_GO"
-    );
-
-    const sortedByPriority = [...actionableItems].sort(
-      (a, b) => scoreItem(b) - scoreItem(a)
-    );
-
-    const actKeys = new Set(
-      sortedByPriority
-        .filter((item) => scoreItem(item) >= 40)
-        .slice(0, 3)
-        .map((item) => normalize(item.text))
-    );
-
-    cleanedItems = cleanedItems.map((item) => {
-      if (item.category === "LET_GO") return item;
-
-      if (actKeys.has(normalize(item.text))) {
-        return { ...item, category: "ACT" };
-      }
-
-      return { ...item, category: "NOT_NOW" };
-    });
-
-    let actItems = cleanedItems.filter((item) => item.category === "ACT");
-
-    if (actItems.length === 0 && actionableItems.length > 0) {
-      const best = sortedByPriority[0];
-
-      cleanedItems = cleanedItems.map((item) =>
-        normalize(item.text) === normalize(best.text)
-          ? { ...item, category: "ACT" }
-          : item
-      );
-
-      actItems = cleanedItems.filter((item) => item.category === "ACT");
-    }
-
-    let nextStep = actItems[0]?.text || cleanText(parsed.next_step_under_5_min);
-
-    const appointmentAct = actItems.find((item) => isAppointment(item.text));
-    const communicationAct = actItems.find((item) => isCommunication(item.text));
-    const ticketAct = actItems.find((item) => isTicket(item.text));
-
-    if (appointmentAct) {
-      nextStep = appointmentAct.text;
-    } else if (communicationAct) {
-      nextStep = communicationAct.text;
-    } else if (ticketAct) {
-      nextStep = ticketAct.text;
-    }
-
-    const seen = new Set();
-
-    cleanedItems = cleanedItems.filter((item) => {
-      const key = `${normalize(item.text)}::${item.category}`;
-
-      if (seen.has(key)) return false;
-
-      seen.add(key);
-      return true;
-    });
+    // === CLEAN NEXT STEP (remove dot if exists) ===
+    const cleanNextStep = parsed.nextStep.replace(/\.$/, "");
 
     return res.status(200).json({
-      summary: cleanText(parsed.summary),
-      next_step_under_5_min: cleanText(nextStep),
-      items: cleanedItems
+      summary: parsed.summary,
+      nextStep: cleanNextStep,
+      tasks,
     });
-  } catch (error) {
-    console.error(error);
-
-    return res.status(500).json({
-      error: error.message || "Something went wrong"
-    });
+  } catch (err) {
+    return res.status(500).json({ error: "Server error" });
   }
 }
