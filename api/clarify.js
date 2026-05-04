@@ -67,12 +67,21 @@ export default async function handler(req, res) {
       "osta pilet", "osta piletid", "kinopilet", "kinopiletid"
     ];
 
+    const selfCareKeywords = [
+      "gym", "workout", "exercise", "walk", "go for a walk", "run", "running",
+      "bath", "take a bath", "shower", "meditate", "stretch", "rest", "sleep",
+      "mental health", "fresh air", "breathe", "breathing",
+
+      "trenn", "trenni", "treeni", "jõusaal", "jõusaali", "jalutama", "jaluta",
+      "jalutuskäik", "jooksma", "jooks", "vann", "mine vanni", "vannis",
+      "dušš", "duss", "mediteeri", "venita", "puhka", "maga", "uni",
+      "õue", "värske õhk", "hinga", "hingamine"
+    ];
+
     const waitKeywords = [
-      "clean", "laundry", "walk", "exercise", "workout", "gym", "train",
-      "read", "reading", "book", "video", "tiktok", "learn", "study",
-      "meditate", "stretch", "korista", "koristada", "köök", "kööki",
-      "pesu", "jalutama", "jaluta", "trenn", "trenni", "treeni", "loe",
-      "lugeda", "raamat", "õpi", "mediteeri", "venita"
+      "clean", "laundry", "read", "reading", "book", "video", "tiktok",
+      "learn", "study", "korista", "koristada", "köök", "kööki", "pesu",
+      "loe", "lugeda", "raamat", "õpi"
     ];
 
     const letGoKeywords = [
@@ -91,6 +100,7 @@ export default async function handler(req, res) {
     const isCommunication = (value) => includesAny(value, communicationKeywords);
     const isPayment = (value) => includesAny(value, paymentKeywords);
     const isTicket = (value) => includesAny(value, ticketKeywords);
+    const isSelfCare = (value) => includesAny(value, selfCareKeywords);
     const isWait = (value) => includesAny(value, waitKeywords);
     const isLetGo = (value) => includesAny(value, letGoKeywords);
     const isAbstract = includesAny(input, abstractKeywords);
@@ -101,6 +111,7 @@ export default async function handler(req, res) {
       isCommunication(input) ||
       isPayment(input) ||
       isTicket(input) ||
+      isSelfCare(input) ||
       isWait(input);
 
     const looksLikeTaskList =
@@ -181,7 +192,8 @@ Return exactly:
 
     if (isAbstract && !looksLikeTaskList) {
       return res.status(200).json({
-        summary: cleanText(parsed.summary) ||
+        summary:
+          cleanText(parsed.summary) ||
           "It sounds like you’re feeling stuck or unsure. That’s okay — you don’t need to figure everything out at once",
         next_step_under_5_min:
           "Write down 3 small things that might need your attention",
@@ -195,6 +207,7 @@ Return exactly:
       if (isCommunication(text)) return 95;
       if (isPayment(text)) return 90;
       if (isTicket(text)) return 85;
+      if (isSelfCare(text)) return 80;
       if (isWait(text)) return 10;
       return 40;
     };
@@ -230,6 +243,7 @@ Return exactly:
       finalActItems.find((item) => isCommunication(item.text))?.text ||
       finalActItems.find((item) => isPayment(item.text))?.text ||
       finalActItems.find((item) => isTicket(item.text))?.text ||
+      finalActItems.find((item) => isSelfCare(item.text))?.text ||
       finalActItems[0]?.text ||
       cleanText(parsed.next_step_under_5_min) ||
       originalTasks[0] ||
