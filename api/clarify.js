@@ -39,6 +39,20 @@ export default async function handler(req, res) {
 
     const originalTasks = splitInputIntoTasks(input);
 
+    const isEstonianInput = (value) => {
+      const text = normalize(value);
+      return (
+        /[õäöü]/i.test(value) ||
+        [
+          "ma ", "mul ", "mulle ", "minu ", "ei ", "ja ", "vaja ", "pean ",
+          "arst", "arve", "korista", "jaluta", "trenn", "pilet", "helista",
+          "kirjuta", "vasta", "pesu", "õue"
+        ].some((word) => text.includes(word))
+      );
+    };
+
+    const estonian = isEstonianInput(input);
+
     const appointmentKeywords = [
       "doctor", "dentist", "therapist", "appointment", "meeting", "booking",
       "reservation", "reserve", "calendar", "schedule", "time slot",
@@ -71,7 +85,6 @@ export default async function handler(req, res) {
       "gym", "workout", "exercise", "walk", "go for a walk", "run", "running",
       "bath", "take a bath", "shower", "meditate", "stretch", "rest", "sleep",
       "mental health", "fresh air", "breathe", "breathing",
-
       "trenn", "trenni", "treeni", "jõusaal", "jõusaali", "jalutama", "jaluta",
       "jalutuskäik", "jooksma", "jooks", "vann", "mine vanni", "vannis",
       "dušš", "duss", "mediteeri", "venita", "puhka", "maga", "uni",
@@ -94,6 +107,15 @@ export default async function handler(req, res) {
       "don't know", "dont know", "i do not know", "lost", "confused", "stuck",
       "overwhelmed", "too much", "no idea", "ei tea", "segaduses",
       "ei saa aru", "kinni jooksnud", "pea on tühi", "liiga palju"
+    ];
+
+    const prohibitedOneStepKeywords = [
+      "clean", "cleaning", "laundry", "tidy", "organize room",
+      "walk the dog", "go for a walk", "walk", "run", "running", "exercise",
+      "workout", "gym", "cook", "cooking", "study", "read the book",
+      "korista", "koristada", "pesu", "jaluta", "jalutama", "koeraga jalutama",
+      "jooksma", "trenn", "trenni", "jõusaal", "kokka", "süüa tegema",
+      "õpi", "õppida", "loe raamatut"
     ];
 
     const isAppointment = (value) => includesAny(value, appointmentKeywords);
@@ -133,6 +155,20 @@ Rules:
 - Do not invent tasks.
 - Do not translate tasks.
 - Do not add punctuation at the end.
+
+One small step rule:
+- The next step must take under 5 minutes.
+- It must be a starting action, not the full task.
+- It must be physically small and immediately actionable.
+- Do NOT suggest full activities like cleaning, exercising, walking the dog, going to the gym, cooking, studying, reading a book, doing laundry, or similar multi-step tasks.
+- Instead, shrink them into a tiny starter action.
+- Good examples:
+  - Open the email draft
+  - Write the first sentence
+  - Put the bill on the table
+  - Put on your shoes
+  - Pick up 3 items
+  - Set a 5-minute timer
 
 Input:
 """${input}"""
@@ -177,8 +213,9 @@ Return exactly:
     const raw = openAiData?.choices?.[0]?.message?.content || "";
 
     let parsed = {
-      summary:
-        "You have a few things on your mind. Let’s pick what needs attention first",
+      summary: estonian
+        ? "Sul on mitu asja korraga peas. Võtame sellest ainult ühe väikese järgmise sammu"
+        : "You have a few things on your mind. Let’s pick one small next step",
       next_step_under_5_min: ""
     };
 
@@ -188,17 +225,6 @@ Return exactly:
       );
     } catch {
       console.error("JSON parse failed:", raw);
-    }
-
-    if (isAbstract && !looksLikeTaskList) {
-      return res.status(200).json({
-        summary:
-          cleanText(parsed.summary) ||
-          "It sounds like you’re feeling stuck or unsure. That’s okay — you don’t need to figure everything out at once",
-        next_step_under_5_min:
-          "Write down 3 small things that might need your attention",
-        items: []
-      });
     }
 
     const scoreTask = (text) => {
@@ -238,19 +264,196 @@ Return exactly:
 
     const finalActItems = items.filter((item) => item.category === "ACT");
 
-    let nextStep =
+    const makeMicroStep = (task) => {
+      const text = normalize(task);
+
+      if (isAppointment(task)) {
+        return estonian ? "Ava kalender ja vaata esimest vaba aega" : "Open your calendar and check the first free time";
+      }
+
+      if (isCommunication(task)) {
+        if (text.includes("call") || text.includes("helista") || text.includes("kõne")) {
+          return estonian ? "Ava kontakt ja kirjuta valmis üks lause" : "Open the contact and write one sentence first";
+        }
+
+        return estonian ? "Ava sõnum või e-kiri ja kirjuta esimene lause" : "Open the message or email and write the first sentence";
+      }
+
+      if (isPayment(task)) {
+        return estonian ? "Ava arve ja kontrolli summa üle" : "Open the bill and check the amount";
+      }
+
+      if (isTicket(task)) {
+        return estonian ? "Ava piletileht ja vaata esimest sobivat varianti" : "Open the ticket page and check the first suitable option";
+      }
+
+      if (isSelfCare(task)) {
+        if (
+          text.includes("walk") ||
+          text.includes("jaluta") ||
+          text.includes("jalutama") ||
+          text.includes("õue") ||
+          text.includes("fresh air")
+        ) {
+          return estonian ? "Pane jalanõud valmis" : "Put your shoes by the door";
+        }
+
+        if (
+          text.includes("gym") ||
+          text.includes("workout") ||
+          text.includes("exercise") ||
+          text.includes("trenn") ||
+          text.includes("trenni") ||
+          text.includes("jõusaal")
+        ) {
+          return estonian ? "Pane trenniriided valmis" : "Put your workout clothes ready";
+        }
+
+        if (
+          text.includes("bath") ||
+          text.includes("vann") ||
+          text.includes("shower") ||
+          text.includes("dušš") ||
+          text.includes("duss")
+        ) {
+          return estonian ? "Pane vann või dušš valmis" : "Turn on the bath or shower";
+        }
+
+        if (
+          text.includes("sleep") ||
+          text.includes("rest") ||
+          text.includes("puhka") ||
+          text.includes("maga") ||
+          text.includes("uni")
+        ) {
+          return estonian ? "Pane telefon kõrvale kaheks minutiks" : "Put your phone away for two minutes";
+        }
+
+        return estonian ? "Tee üks rahulik hingetõmme ja vali üks väike algus" : "Take one slow breath and choose one tiny start";
+      }
+
+      if (isWait(task)) {
+        if (
+          text.includes("clean") ||
+          text.includes("korista") ||
+          text.includes("tidy")
+        ) {
+          return estonian ? "Korja üles 3 asja" : "Pick up 3 items";
+        }
+
+        if (
+          text.includes("laundry") ||
+          text.includes("pesu")
+        ) {
+          return estonian ? "Pane pesu ühte kohta kokku" : "Put the laundry in one place";
+        }
+
+        if (
+          text.includes("read") ||
+          text.includes("loe") ||
+          text.includes("lugeda") ||
+          text.includes("book") ||
+          text.includes("raamat")
+        ) {
+          return estonian ? "Ava raamat või tekst õigest kohast" : "Open the book or text to the right page";
+        }
+
+        return estonian ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast" : "Set a 5-minute timer and start with the smallest part";
+      }
+
+      return estonian ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast" : "Set a 5-minute timer and start with the smallest part";
+    };
+
+    const isValidOneStep = (step) => {
+      const value = cleanText(step);
+
+      if (!value) return false;
+
+      const text = normalize(value);
+      const wordCount = value.split(/\s+/).filter(Boolean).length;
+
+      if (wordCount > 14) return false;
+      if (includesAny(value, prohibitedOneStepKeywords)) return false;
+
+      const tooBroadPatterns = [
+        /^clean\b/i,
+        /^walk\b/i,
+        /^exercise\b/i,
+        /^work out\b/i,
+        /^go to the gym\b/i,
+        /^cook\b/i,
+        /^study\b/i,
+        /^read\b/i,
+        /^do laundry\b/i,
+        /^korista\b/i,
+        /^jaluta\b/i,
+        /^mine jalutama\b/i,
+        /^tee trenni\b/i,
+        /^mine trenni\b/i,
+        /^mine jõusaali\b/i,
+        /^õpi\b/i,
+        /^loe\b/i,
+        /^pese pesu\b/i
+      ];
+
+      if (tooBroadPatterns.some((pattern) => pattern.test(value))) return false;
+
+      const starterVerbs = [
+        "open", "write", "put", "pick", "set", "check", "send", "start",
+        "choose", "place", "turn", "take",
+        "ava", "kirjuta", "pane", "korja", "kontrolli", "vali", "alusta",
+        "vaata", "tee"
+      ];
+
+      return starterVerbs.some((verb) => text.startsWith(verb));
+    };
+
+    const chooseBestTaskForStep = () =>
       finalActItems.find((item) => isAppointment(item.text))?.text ||
       finalActItems.find((item) => isCommunication(item.text))?.text ||
       finalActItems.find((item) => isPayment(item.text))?.text ||
       finalActItems.find((item) => isTicket(item.text))?.text ||
       finalActItems.find((item) => isSelfCare(item.text))?.text ||
       finalActItems[0]?.text ||
-      cleanText(parsed.next_step_under_5_min) ||
       originalTasks[0] ||
       "";
 
+    if (isAbstract && !looksLikeTaskList) {
+      const abstractStep = estonian
+        ? "Kirjuta üles 3 väikest asja, mis võivad tähelepanu vajada"
+        : "Write down 3 small things that might need your attention";
+
+      return res.status(200).json({
+        summary:
+          cleanText(parsed.summary) ||
+          (estonian
+            ? "Tundub, et oled veidi kinni või segaduses. See on okei — kõike ei pea korraga lahendama"
+            : "It sounds like you’re feeling stuck or unsure. That’s okay — you don’t need to figure everything out at once"),
+        next_step_under_5_min: abstractStep,
+        items: []
+      });
+    }
+
+    const bestTask = chooseBestTaskForStep();
+
+    let nextStep = cleanText(parsed.next_step_under_5_min);
+
+    if (!isValidOneStep(nextStep)) {
+      nextStep = makeMicroStep(bestTask);
+    }
+
+    if (!isValidOneStep(nextStep)) {
+      nextStep = estonian
+        ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast"
+        : "Set a 5-minute timer and start with the smallest part";
+    }
+
     return res.status(200).json({
-      summary: cleanText(parsed.summary),
+      summary:
+        cleanText(parsed.summary) ||
+        (estonian
+          ? "Sul on mitu asja korraga peas. Võtame sellest ainult ühe väikese järgmise sammu"
+          : "You have a few things on your mind. Let’s pick one small next step"),
       next_step_under_5_min: cleanText(nextStep),
       items
     });
