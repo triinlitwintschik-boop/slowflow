@@ -76,9 +76,15 @@ export default async function handler(req, res) {
     ];
 
     const letGoKeywords = [
-      "worry", "stress", "guilt", "ashamed", "overwhelmed",
+      "worry", "stress", "guilt", "ashamed", "overwhelmed", "anxious",
       "mure", "muretsen", "stress", "süü", "süümekad", "häbi",
-      "olen halb", "ei jaksa", "kardan"
+      "olen halb", "ei jaksa", "kardan", "ärev", "ärevus"
+    ];
+
+    const abstractKeywords = [
+      "don't know", "dont know", "i do not know", "lost", "confused", "stuck",
+      "overwhelmed", "too much", "no idea", "ei tea", "segaduses",
+      "ei saa aru", "kinni jooksnud", "pea on tühi", "liiga palju"
     ];
 
     const isAppointment = (value) => includesAny(value, appointmentKeywords);
@@ -87,24 +93,31 @@ export default async function handler(req, res) {
     const isTicket = (value) => includesAny(value, ticketKeywords);
     const isWait = (value) => includesAny(value, waitKeywords);
     const isLetGo = (value) => includesAny(value, letGoKeywords);
+    const isAbstract = includesAny(input, abstractKeywords);
 
-    const scoreTask = (text) => {
-      if (isLetGo(text)) return -100;
-      if (isAppointment(text)) return 100;
-      if (isCommunication(text)) return 95;
-      if (isPayment(text)) return 90;
-      if (isTicket(text)) return 85;
-      if (isWait(text)) return 10;
-      return 40;
-    };
+    const hasSeparators = /,|\n|;/.test(input);
+    const hasStrongTaskSignal =
+      isAppointment(input) ||
+      isCommunication(input) ||
+      isPayment(input) ||
+      isTicket(input) ||
+      isWait(input);
+
+    const looksLikeTaskList =
+      hasSeparators || originalTasks.length > 1 || hasStrongTaskSignal;
 
     const prompt = `
 You organize a messy brain dump into calm clarity.
 
 Return valid JSON only.
 
+Language rule:
+- Respond in the same language as the user input when clear.
+- If the language is unclear, respond in English.
+- Do not respond in a random third language.
+
 Rules:
-- Write a short warm summary in the same language as the user if possible.
+- Write a short warm summary.
 - Suggest one next step.
 - Do not invent tasks.
 - Do not translate tasks.
@@ -153,7 +166,8 @@ Return exactly:
     const raw = openAiData?.choices?.[0]?.message?.content || "";
 
     let parsed = {
-      summary: "You have a few things on your mind. Let’s pick what needs attention first",
+      summary:
+        "You have a few things on your mind. Let’s pick what needs attention first",
       next_step_under_5_min: ""
     };
 
@@ -165,7 +179,29 @@ Return exactly:
       console.error("JSON parse failed:", raw);
     }
 
-    const sortedTasks = [...originalTasks].sort((a, b) => scoreTask(b) - scoreTask(a));
+    if (isAbstract && !looksLikeTaskList) {
+      return res.status(200).json({
+        summary: cleanText(parsed.summary) ||
+          "It sounds like you’re feeling stuck or unsure. That’s okay — you don’t need to figure everything out at once",
+        next_step_under_5_min:
+          "Write down 3 small things that might need your attention",
+        items: []
+      });
+    }
+
+    const scoreTask = (text) => {
+      if (isLetGo(text)) return -100;
+      if (isAppointment(text)) return 100;
+      if (isCommunication(text)) return 95;
+      if (isPayment(text)) return 90;
+      if (isTicket(text)) return 85;
+      if (isWait(text)) return 10;
+      return 40;
+    };
+
+    const sortedTasks = [...originalTasks].sort(
+      (a, b) => scoreTask(b) - scoreTask(a)
+    );
 
     const actTasks = sortedTasks
       .filter((task) => scoreTask(task) >= 40)
@@ -175,7 +211,7 @@ Return exactly:
 
     const items = originalTasks
       .map((task) => {
-        if (isLetGo(task)) {
+        if (isLetGo(task) && !hasStrongTaskSignal) {
           return { text: task, category: "LET_GO" };
         }
 
