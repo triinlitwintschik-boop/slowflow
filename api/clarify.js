@@ -89,7 +89,8 @@ export default async function handler(req, res) {
       "vii koer õue", "koer õue", "toida koera", "anna koerale süüa",
       "kass", "kassi", "toida kassi", "anna kassile süüa",
       "liivakast", "kassi liivakast", "lemmikloom", "lemmiklooma",
-      "lemmikloomad"
+      "lemmikloomad", "koeraga metsa", "mine koeraga", "koeraga õue", 
+      "koeraga välja", "vii koer"
     ];
 
     const selfCareKeywords = [
@@ -129,11 +130,32 @@ export default async function handler(req, res) {
       "õpi", "õppida", "loe raamatut"
     ];
 
-    const isAppointment = (value) => includesAny(value, appointmentKeywords);
-    const isCommunication = (value) => includesAny(value, communicationKeywords);
-    const isPayment = (value) => includesAny(value, paymentKeywords);
-    const isTicket = (value) => includesAny(value, ticketKeywords);
-    const isPetCare = (value) => includesAny(value, petCareKeywords);
+  const isAppointment = (value) => includesAny(value, appointmentKeywords);
+const isCommunication = (value) => includesAny(value, communicationKeywords);
+const isPayment = (value) => includesAny(value, paymentKeywords);
+const isTicket = (value) => includesAny(value, ticketKeywords);
+
+const isPetCare = (value) => {
+  const text = normalize(value);
+
+  return (
+    includesAny(value, petCareKeywords) ||
+    /\bkoeraga\b/.test(text) ||
+    /\bkoera\b.*\b(õue|välja|jalutama|metsa)\b/.test(text) ||
+    /\bdog\b.*\b(walk|out|outside)\b/.test(text)
+  );
+};
+
+const isSelfCare = (value) => includesAny(value, selfCareKeywords);
+const isWait = (value) => includesAny(value, waitKeywords);
+const isLetGo = (value) => includesAny(value, letGoKeywords);
+const isAbstract = includesAny(input, abstractKeywords);
+    includesAny(value, petCareKeywords) ||
+    /\bkoeraga\b/.test(text) ||
+    /\bkoera\b.*\b(õue|välja|jalutama|metsa)\b/.test(text) ||
+    /\b(dog)\b.*\b(walk|out|outside)\b/.test(text)
+  );
+};
     const isSelfCare = (value) => includesAny(value, selfCareKeywords);
     const isWait = (value) => includesAny(value, waitKeywords);
     const isLetGo = (value) => includesAny(value, letGoKeywords);
