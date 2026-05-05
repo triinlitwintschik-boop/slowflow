@@ -89,7 +89,7 @@ export default async function handler(req, res) {
       "vii koer õue", "koer õue", "toida koera", "anna koerale süüa",
       "kass", "kassi", "toida kassi", "anna kassile süüa",
       "liivakast", "kassi liivakast", "lemmikloom", "lemmiklooma",
-      "lemmikloomad", "koeraga metsa", "mine koeraga", "koeraga õue", 
+      "lemmikloomad", "koeraga metsa", "mine koeraga", "koeraga õue",
       "koeraga välja", "vii koer"
     ];
 
@@ -130,32 +130,22 @@ export default async function handler(req, res) {
       "õpi", "õppida", "loe raamatut"
     ];
 
-  const isAppointment = (value) => includesAny(value, appointmentKeywords);
-const isCommunication = (value) => includesAny(value, communicationKeywords);
-const isPayment = (value) => includesAny(value, paymentKeywords);
-const isTicket = (value) => includesAny(value, ticketKeywords);
+    const isAppointment = (value) => includesAny(value, appointmentKeywords);
+    const isCommunication = (value) => includesAny(value, communicationKeywords);
+    const isPayment = (value) => includesAny(value, paymentKeywords);
+    const isTicket = (value) => includesAny(value, ticketKeywords);
 
-const isPetCare = (value) => {
-  const text = normalize(value);
+    const isPetCare = (value) => {
+      const text = normalize(value);
 
-  return (
-    includesAny(value, petCareKeywords) ||
-    /\bkoeraga\b/.test(text) ||
-    /\bkoera\b.*\b(õue|välja|jalutama|metsa)\b/.test(text) ||
-    /\bdog\b.*\b(walk|out|outside)\b/.test(text)
-  );
-};
+      return (
+        includesAny(value, petCareKeywords) ||
+        /\bkoeraga\b/.test(text) ||
+        /\bkoera\b.*\b(õue|välja|jalutama|metsa)\b/.test(text) ||
+        /\bdog\b.*\b(walk|out|outside)\b/.test(text)
+      );
+    };
 
-const isSelfCare = (value) => includesAny(value, selfCareKeywords);
-const isWait = (value) => includesAny(value, waitKeywords);
-const isLetGo = (value) => includesAny(value, letGoKeywords);
-const isAbstract = includesAny(input, abstractKeywords);
-    includesAny(value, petCareKeywords) ||
-    /\bkoeraga\b/.test(text) ||
-    /\bkoera\b.*\b(õue|välja|jalutama|metsa)\b/.test(text) ||
-    /\b(dog)\b.*\b(walk|out|outside)\b/.test(text)
-  );
-};
     const isSelfCare = (value) => includesAny(value, selfCareKeywords);
     const isWait = (value) => includesAny(value, waitKeywords);
     const isLetGo = (value) => includesAny(value, letGoKeywords);
@@ -305,19 +295,27 @@ Return exactly:
       const text = normalize(task);
 
       if (isAppointment(task)) {
-        return estonian ? "Ava kalender ja vaata esimest vaba aega" : "Open your calendar and check the first free time";
+        return estonian
+          ? "Ava kalender ja vaata esimest vaba aega"
+          : "Open your calendar and check the first free time";
       }
 
       if (isCommunication(task)) {
         if (text.includes("call") || text.includes("helista") || text.includes("kõne")) {
-          return estonian ? "Ava kontakt ja kirjuta valmis üks lause" : "Open the contact and write one sentence first";
+          return estonian
+            ? "Ava kontakt ja kirjuta valmis üks lause"
+            : "Open the contact and write one sentence first";
         }
 
-        return estonian ? "Ava sõnum või e-kiri ja kirjuta esimene lause" : "Open the message or email and write the first sentence";
+        return estonian
+          ? "Ava sõnum või e-kiri ja kirjuta esimene lause"
+          : "Open the message or email and write the first sentence";
       }
 
       if (isPayment(task)) {
-        return estonian ? "Ava arve ja kontrolli summa üle" : "Open the bill and check the amount";
+        return estonian
+          ? "Ava arve ja kontrolli summa üle"
+          : "Open the bill and check the amount";
       }
 
       if (isPetCare(task)) {
@@ -325,9 +323,12 @@ Return exactly:
           text.includes("walk") ||
           text.includes("jaluta") ||
           text.includes("jalutama") ||
-          text.includes("õue")
+          text.includes("õue") ||
+          text.includes("metsa")
         ) {
-          return estonian ? "Pane rihm ukse juurde valmis" : "Put the leash by the door";
+          return estonian
+            ? "Pane rihm ukse juurde valmis"
+            : "Put the leash by the door";
         }
 
         if (
@@ -335,21 +336,26 @@ Return exactly:
           text.includes("toida") ||
           text.includes("süüa")
         ) {
-          return estonian ? "Pane lemmiku toit valmis" : "Put the pet food ready";
+          return estonian
+            ? "Pane lemmiku toit valmis"
+            : "Put the pet food ready";
         }
 
-        if (
-          text.includes("litter") ||
-          text.includes("liivakast")
-        ) {
-          return estonian ? "Võta liivakasti puhastamiseks kott valmis" : "Get a bag ready for the litter box";
+        if (text.includes("litter") || text.includes("liivakast")) {
+          return estonian
+            ? "Võta liivakasti puhastamiseks kott valmis"
+            : "Get a bag ready for the litter box";
         }
 
-        return estonian ? "Pane lemmiku asi ukse või kausi juurde valmis" : "Put one pet-care item ready";
+        return estonian
+          ? "Pane lemmiku asi ukse või kausi juurde valmis"
+          : "Put one pet-care item ready";
       }
 
       if (isTicket(task)) {
-        return estonian ? "Ava piletileht ja vaata esimest sobivat varianti" : "Open the ticket page and check the first suitable option";
+        return estonian
+          ? "Ava piletileht ja vaata esimest sobivat varianti"
+          : "Open the ticket page and check the first suitable option";
       }
 
       if (isSelfCare(task)) {
@@ -391,10 +397,14 @@ Return exactly:
           text.includes("maga") ||
           text.includes("uni")
         ) {
-          return estonian ? "Pane telefon kõrvale kaheks minutiks" : "Put your phone away for two minutes";
+          return estonian
+            ? "Pane telefon kõrvale kaheks minutiks"
+            : "Put your phone away for two minutes";
         }
 
-        return estonian ? "Tee üks rahulik hingetõmme ja vali üks väike algus" : "Take one slow breath and choose one tiny start";
+        return estonian
+          ? "Tee üks rahulik hingetõmme ja vali üks väike algus"
+          : "Take one slow breath and choose one tiny start";
       }
 
       if (isWait(task)) {
@@ -406,11 +416,10 @@ Return exactly:
           return estonian ? "Korja üles 3 asja" : "Pick up 3 items";
         }
 
-        if (
-          text.includes("laundry") ||
-          text.includes("pesu")
-        ) {
-          return estonian ? "Pane pesu ühte kohta kokku" : "Put the laundry in one place";
+        if (text.includes("laundry") || text.includes("pesu")) {
+          return estonian
+            ? "Pane pesu ühte kohta kokku"
+            : "Put the laundry in one place";
         }
 
         if (
@@ -420,13 +429,19 @@ Return exactly:
           text.includes("book") ||
           text.includes("raamat")
         ) {
-          return estonian ? "Ava raamat või tekst õigest kohast" : "Open the book or text to the right page";
+          return estonian
+            ? "Ava raamat või tekst õigest kohast"
+            : "Open the book or text to the right page";
         }
 
-        return estonian ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast" : "Set a 5-minute timer and start with the smallest part";
+        return estonian
+          ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast"
+          : "Set a 5-minute timer and start with the smallest part";
       }
 
-      return estonian ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast" : "Set a 5-minute timer and start with the smallest part";
+      return estonian
+        ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast"
+        : "Set a 5-minute timer and start with the smallest part";
     };
 
     const isValidOneStep = (step) => {
