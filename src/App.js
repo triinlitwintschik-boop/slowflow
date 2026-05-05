@@ -181,15 +181,18 @@ export default function App() {
         lines.push("");
       }
 
-      if (result.next_step_under_5_min) {
-        lines.push("One small step");
-        lines.push(result.next_step_under_5_min);
-        lines.push("");
-      }
+    if (result.next_step_under_5_min) {
+  lines.push("One small step");
+  lines.push(result.next_step_under_5_min);
 
-      lines.push("Sorted out");
-    }
+  if (result.next_step_for) {
+    lines.push("→ for: " + result.next_step_for);
+  }
 
+  lines.push("");
+}
+
+lines.push("Sorted out");
     if (act.length > 0) {
       lines.push("Do today");
       act.forEach((item) => lines.push(bullet(item.text)));
