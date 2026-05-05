@@ -46,7 +46,7 @@ export default async function handler(req, res) {
         [
           "ma ", "mul ", "mulle ", "minu ", "ei ", "ja ", "vaja ", "pean ",
           "arst", "arve", "korista", "jaluta", "trenn", "pilet", "helista",
-          "kirjuta", "vasta", "pesu", "õue"
+          "kirjuta", "vasta", "pesu", "õue", "koer", "kass", "lemmikloom"
         ].some((word) => text.includes(word))
       );
     };
@@ -79,6 +79,17 @@ export default async function handler(req, res) {
     const ticketKeywords = [
       "ticket", "tickets", "buy ticket", "buy tickets", "pilet", "piletid",
       "osta pilet", "osta piletid", "kinopilet", "kinopiletid"
+    ];
+
+    const petCareKeywords = [
+      "dog", "walk dog", "walk the dog", "feed dog", "feed the dog",
+      "cat", "feed cat", "feed the cat", "pet", "pets", "pet care",
+      "litter box", "clean litter", "take dog out",
+      "koer", "koera", "koeraga", "jaluta koeraga", "koeraga jalutama",
+      "vii koer õue", "koer õue", "toida koera", "anna koerale süüa",
+      "kass", "kassi", "toida kassi", "anna kassile süüa",
+      "liivakast", "kassi liivakast", "lemmikloom", "lemmiklooma",
+      "lemmikloomad"
     ];
 
     const selfCareKeywords = [
@@ -122,6 +133,7 @@ export default async function handler(req, res) {
     const isCommunication = (value) => includesAny(value, communicationKeywords);
     const isPayment = (value) => includesAny(value, paymentKeywords);
     const isTicket = (value) => includesAny(value, ticketKeywords);
+    const isPetCare = (value) => includesAny(value, petCareKeywords);
     const isSelfCare = (value) => includesAny(value, selfCareKeywords);
     const isWait = (value) => includesAny(value, waitKeywords);
     const isLetGo = (value) => includesAny(value, letGoKeywords);
@@ -133,6 +145,7 @@ export default async function handler(req, res) {
       isCommunication(input) ||
       isPayment(input) ||
       isTicket(input) ||
+      isPetCare(input) ||
       isSelfCare(input) ||
       isWait(input);
 
@@ -167,6 +180,7 @@ One small step rule:
   - Write the first sentence
   - Put the bill on the table
   - Put on your shoes
+  - Put the dog leash by the door
   - Pick up 3 items
   - Set a 5-minute timer
 
@@ -232,6 +246,7 @@ Return exactly:
       if (isAppointment(text)) return 100;
       if (isCommunication(text)) return 95;
       if (isPayment(text)) return 90;
+      if (isPetCare(text)) return 88;
       if (isTicket(text)) return 85;
       if (isSelfCare(text)) return 80;
       if (isWait(text)) return 10;
@@ -281,6 +296,34 @@ Return exactly:
 
       if (isPayment(task)) {
         return estonian ? "Ava arve ja kontrolli summa üle" : "Open the bill and check the amount";
+      }
+
+      if (isPetCare(task)) {
+        if (
+          text.includes("walk") ||
+          text.includes("jaluta") ||
+          text.includes("jalutama") ||
+          text.includes("õue")
+        ) {
+          return estonian ? "Pane rihm ukse juurde valmis" : "Put the leash by the door";
+        }
+
+        if (
+          text.includes("feed") ||
+          text.includes("toida") ||
+          text.includes("süüa")
+        ) {
+          return estonian ? "Pane lemmiku toit valmis" : "Put the pet food ready";
+        }
+
+        if (
+          text.includes("litter") ||
+          text.includes("liivakast")
+        ) {
+          return estonian ? "Võta liivakasti puhastamiseks kott valmis" : "Get a bag ready for the litter box";
+        }
+
+        return estonian ? "Pane lemmiku asi ukse või kausi juurde valmis" : "Put one pet-care item ready";
       }
 
       if (isTicket(task)) {
@@ -378,6 +421,7 @@ Return exactly:
       const tooBroadPatterns = [
         /^clean\b/i,
         /^walk\b/i,
+        /^walk the dog\b/i,
         /^exercise\b/i,
         /^work out\b/i,
         /^go to the gym\b/i,
@@ -387,6 +431,7 @@ Return exactly:
         /^do laundry\b/i,
         /^korista\b/i,
         /^jaluta\b/i,
+        /^jaluta koeraga\b/i,
         /^mine jalutama\b/i,
         /^tee trenni\b/i,
         /^mine trenni\b/i,
@@ -400,9 +445,9 @@ Return exactly:
 
       const starterVerbs = [
         "open", "write", "put", "pick", "set", "check", "send", "start",
-        "choose", "place", "turn", "take",
+        "choose", "place", "turn", "take", "get",
         "ava", "kirjuta", "pane", "korja", "kontrolli", "vali", "alusta",
-        "vaata", "tee"
+        "vaata", "tee", "võta"
       ];
 
       return starterVerbs.some((verb) => text.startsWith(verb));
@@ -412,6 +457,7 @@ Return exactly:
       finalActItems.find((item) => isAppointment(item.text))?.text ||
       finalActItems.find((item) => isCommunication(item.text))?.text ||
       finalActItems.find((item) => isPayment(item.text))?.text ||
+      finalActItems.find((item) => isPetCare(item.text))?.text ||
       finalActItems.find((item) => isTicket(item.text))?.text ||
       finalActItems.find((item) => isSelfCare(item.text))?.text ||
       finalActItems[0]?.text ||
@@ -430,6 +476,7 @@ Return exactly:
             ? "Tundub, et oled veidi kinni või segaduses. See on okei — kõike ei pea korraga lahendama"
             : "It sounds like you’re feeling stuck or unsure. That’s okay — you don’t need to figure everything out at once"),
         next_step_under_5_min: abstractStep,
+        next_step_for: "",
         items: []
       });
     }
@@ -455,6 +502,7 @@ Return exactly:
           ? "Sul on mitu asja korraga peas. Võtame sellest ainult ühe väikese järgmise sammu"
           : "You have a few things on your mind. Let’s pick one small next step"),
       next_step_under_5_min: cleanText(nextStep),
+      next_step_for: cleanText(bestTask),
       items
     });
   } catch (error) {
