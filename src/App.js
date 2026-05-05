@@ -181,18 +181,20 @@ export default function App() {
         lines.push("");
       }
 
-    if (result.next_step_under_5_min) {
-  lines.push("One small step");
-  lines.push(result.next_step_under_5_min);
+      if (result.next_step_under_5_min) {
+        lines.push("One small step");
+        lines.push(result.next_step_under_5_min);
 
-  if (result.next_step_for) {
-    lines.push("→ for: " + result.next_step_for);
-  }
+        if (result.next_step_for) {
+          lines.push("→ for: " + result.next_step_for);
+        }
 
-  lines.push("");
-}
+        lines.push("");
+      }
 
-lines.push("Sorted out");
+      lines.push("Sorted out");
+    }
+
     if (act.length > 0) {
       lines.push("Do today");
       act.forEach((item) => lines.push(bullet(item.text)));
@@ -257,6 +259,54 @@ lines.push("Sorted out");
     } catch (err) {
       console.error(err);
     }
+  }
+
+  function escapeIcsText(value) {
+    return String(value || "")
+      .replace(/\\/g, "\\\\")
+      .replace(/;/g, "\\;")
+      .replace(/,/g, "\\,")
+      .replace(/\n/g, "\\n");
+  }
+
+  function addToCalendar(step, relatedTask = "") {
+    if (!step) return;
+
+    const start = new Date();
+    const end = new Date(start.getTime() + 5 * 60 * 1000);
+
+    const formatDate = (date) =>
+      date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+
+    const description = relatedTask
+      ? `SlowFlow step for: ${relatedTask}`
+      : "SlowFlow one small step";
+
+    const icsContent = `
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//SlowFlow//One Small Step//EN
+BEGIN:VEVENT
+UID:${Date.now()}@slowflow
+SUMMARY:${escapeIcsText("SlowFlow: " + step)}
+DESCRIPTION:${escapeIcsText(description)}
+DTSTART:${formatDate(start)}
+DTEND:${formatDate(end)}
+END:VEVENT
+END:VCALENDAR
+    `.trim();
+
+    const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "slowflow-step.ics";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    URL.revokeObjectURL(url);
   }
 
   async function clarify() {
@@ -566,6 +616,25 @@ lines.push("Sorted out");
                 {result?.next_step_under_5_min ||
                   "We’ll suggest one clear next step here."}
               </p>
+
+              {result?.next_step_for ? (
+                <div style={styles.stepFor}>→ for: {result.next_step_for}</div>
+              ) : null}
+
+              {result?.next_step_under_5_min ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    addToCalendar(
+                      result.next_step_under_5_min,
+                      result.next_step_for
+                    )
+                  }
+                  style={styles.calendarButton}
+                >
+                  + Add to calendar (5 min)
+                </button>
+              ) : null}
             </div>
 
             {focusMode && hasResult ? (
@@ -973,6 +1042,23 @@ const styles = {
     marginBottom: 12,
     border: "1px solid rgba(125,211,252,0.1)",
     boxShadow: "0 12px 28px rgba(0,0,0,0.3)"
+  },
+  stepFor: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#8ea3b7",
+    lineHeight: 1.5
+  },
+  calendarButton: {
+    marginTop: 10,
+    border: "1px solid rgba(125,211,252,0.16)",
+    background: "rgba(255,255,255,0.03)",
+    color: "#dbeafe",
+    borderRadius: 999,
+    padding: "8px 11px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer"
   },
   focusCard: {
     background:
