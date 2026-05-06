@@ -47,12 +47,17 @@ export default async function handler(req, res) {
           "ma ", "mul ", "mulle ", "minu ", "ei ", "ja ", "vaja ", "pean ",
           "arst", "arve", "korista", "jaluta", "trenn", "pilet", "helista",
           "kirjuta", "vasta", "pesu", "õue", "koer", "kass", "lemmikloom",
-          "täna", "õhtuks", "homseks", "restoran"
+          "täna", "õhtuks", "homseks", "restoran", "broneeri", "osta",
+          "maksa", "tee", "mine", "loe", "õpi", "sõbranna"
         ].some((word) => text.includes(word))
       );
     };
 
     const estonian = isEstonianInput(input);
+
+    const fallbackSummary = estonian
+      ? "Sul on mitu asja korraga peas. Võtame sellest ainult ühe väikese järgmise sammu"
+      : "You have a few things on your mind. Let’s pick one small next step";
 
     const timeSensitiveKeywords = [
       "today", "tonight", "by tonight", "this evening", "tomorrow",
@@ -78,7 +83,7 @@ export default async function handler(req, res) {
       "email", "emails", "reply", "message", "messages", "call", "text", "sms",
       "e-mail", "e-mails", "kirjuta", "vasta", "vastata", "e-kiri",
       "e-kirjad", "e-kirjadele", "meil", "meilid", "sõnum", "sõnumid",
-      "helista", "kõne"
+      "helista", "kõne", "sõbranna", "sõbrannale", "emale", "isale"
     ];
 
     const paymentKeywords = [
@@ -184,13 +189,18 @@ You organize a messy brain dump into calm clarity.
 
 Return valid JSON only.
 
-Language rule:
-- Respond in the same language as the user input when clear.
-- If the language is unclear, respond in English.
-- Do not respond in a random third language.
+CRITICAL LANGUAGE RULE:
+- Detect the language of the user's input.
+- ALWAYS respond in the SAME language as the user's input.
+- NEVER mix languages.
+- NEVER answer in English if the input is Estonian.
+- NEVER answer in Estonian if the input is English.
+- If the input contains mostly Estonian words or Estonian letters (õ ä ö ü), respond fully in Estonian.
+- The summary and all generated text MUST match the user's language exactly.
 
 Rules:
 - Write a short warm summary.
+- Keep it calm and natural.
 - Do not invent tasks.
 - Do not translate tasks.
 - Do not add punctuation at the end.
@@ -216,7 +226,9 @@ Return exactly:
         messages: [
           {
             role: "system",
-            content: "You return only valid JSON. No explanations."
+            content: estonian
+              ? "You return only valid JSON. All text values must be in Estonian. No explanations."
+              : "You return only valid JSON. All text values must be in English. No explanations."
           },
           {
             role: "user",
@@ -237,9 +249,7 @@ Return exactly:
     const raw = openAiData?.choices?.[0]?.message?.content || "";
 
     let parsed = {
-      summary: estonian
-        ? "Sul on mitu asja korraga peas. Võtame sellest ainult ühe väikese järgmise sammu"
-        : "You have a few things on your mind. Let’s pick one small next step"
+      summary: fallbackSummary
     };
 
     try {
@@ -416,11 +426,7 @@ Return exactly:
     const nextStep = makeMicroStep(bestTask);
 
     return res.status(200).json({
-      summary:
-        cleanText(parsed.summary) ||
-        (estonian
-          ? "Sul on mitu asja korraga peas. Võtame sellest ainult ühe väikese järgmise sammu"
-          : "You have a few things on your mind. Let’s pick one small next step"),
+      summary: cleanText(parsed.summary) || fallbackSummary,
       next_step_under_5_min: cleanText(nextStep),
       next_step_for: cleanText(bestTask),
       items
