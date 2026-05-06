@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 
 const DONE_STORAGE_KEY = "slowflow-done-items";
 const HISTORY_STORAGE_KEY = "slowflow-sessions";
+const DAILY_SKIP_STORAGE_KEY = "slowflow-daily-skipped-items";
+const TODAY_KEY = new Date().toISOString().slice(0, 10);
 
 export default function App() {
   const [text, setText] = useState("");
@@ -28,6 +30,21 @@ export default function App() {
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
+    }
+  });
+
+  const [skippedCarryKeys, setSkippedCarryKeys] = useState(() => {
+    try {
+      const saved = localStorage.getItem(DAILY_SKIP_STORAGE_KEY);
+      const parsed = saved ? JSON.parse(saved) : null;
+
+      if (parsed?.date === TODAY_KEY && Array.isArray(parsed.keys)) {
+        return parsed.keys;
+      }
+
+      return [];
+    } catch {
+      return [];
     }
   });
 
@@ -65,6 +82,18 @@ export default function App() {
       localStorage.setItem(DONE_STORAGE_KEY, JSON.stringify(doneItems));
     } catch {}
   }, [doneItems]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        DAILY_SKIP_STORAGE_KEY,
+        JSON.stringify({
+          date: TODAY_KEY,
+          keys: skippedCarryKeys
+        })
+      );
+    } catch {}
+  }, [skippedCarryKeys]);
 
   function saveSession(input, output) {
     const newSession = {
@@ -159,9 +188,53 @@ export default function App() {
     [actDone, notNowDone, letGoDone]
   );
 
+  const carryOverItems = useMemo(() => {
+    const seen = new Set();
+    const skipped = new Set(skippedCarryKeys);
+    const currentActKeys = new Set(
+      actWithoutDuplicate.map((item) => getItemKey("ACT", item.text))
+    );
+
+    return history
+      .flatMap((session) => session?.result?.items || [])
+      .filter((item) => item.category === "ACT")
+      .filter((item) => {
+        const key = getItemKey("ACT", item.text);
+
+        if (seen.has(key)) return false;
+        if (skipped.has(key)) return false;
+        if (currentActKeys.has(key)) return false;
+        if (isDone("ACT", item.text)) return false;
+
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 3);
+  }, [history, doneItems, skippedCarryKeys, actWithoutDuplicate]);
+
   const currentFocusTask = act[0];
   const hasResult = !!result;
   const hasAnyDoneItems = Object.values(doneItems).some(Boolean);
+
+  function addCarryToInput(textValue) {
+    const value = String(textValue || "").trim();
+    if (!value) return;
+
+    setText((prev) => {
+      if (!prev.trim()) return value;
+      if (normalizeText(prev).includes(normalizeText(value))) return prev;
+      return `${prev.trim()}, ${value}`;
+    });
+  }
+
+  function skipCarryItem(textValue) {
+    const key = getItemKey("ACT", textValue);
+
+    setSkippedCarryKeys((prev) => {
+      if (prev.includes(key)) return prev;
+      return [...prev, key];
+    });
+  }
 
   function buildFormattedText(format = "plain", onlyAct = false) {
     if (!result) return "";
@@ -481,6 +554,42 @@ END:VCALENDAR
     );
   }
 
+  function renderCarryOverItem(item) {
+    const key = getItemKey("ACT", item.text);
+
+    return (
+      <div key={key} style={styles.dailyItem}>
+        <div style={styles.dailyItemText}>{item.text}</div>
+
+        <div style={styles.dailyActions}>
+          <button
+            type="button"
+            onClick={() => toggleDone("ACT", item.text)}
+            style={styles.dailyDoneButton}
+          >
+            Done
+          </button>
+
+          <button
+            type="button"
+            onClick={() => addCarryToInput(item.text)}
+            style={styles.dailyStillButton}
+          >
+            Still here
+          </button>
+
+          <button
+            type="button"
+            onClick={() => skipCarryItem(item.text)}
+            style={styles.dailyNotTodayButton}
+          >
+            Not today
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.page}>
       <style>{`
@@ -579,6 +688,25 @@ END:VCALENDAR
         </div>
 
         {error ? <div style={styles.errorCard}>{error}</div> : null}
+
+        {!loading && carryOverItems.length > 0 ? (
+          <div style={{ ...styles.card, animation: "floatIn 0.22s ease" }}>
+            <div style={styles.cardHeader}>
+              <div>
+                <h3 style={styles.cardTitle}>🌅 Start today</h3>
+                <div style={styles.dailySubtext}>
+                  These were still open from recent sessions.
+                </div>
+              </div>
+
+              <div style={styles.sectionPill}>{carryOverItems.length}</div>
+            </div>
+
+            <div style={styles.dailyList}>
+              {carryOverItems.map((item) => renderCarryOverItem(item))}
+            </div>
+          </div>
+        ) : null}
 
         {loading ? (
           <>
@@ -1042,6 +1170,70 @@ const styles = {
     marginBottom: 12,
     border: "1px solid rgba(125,211,252,0.1)",
     boxShadow: "0 12px 28px rgba(0,0,0,0.3)"
+  },
+  dailySubtext: {
+    marginTop: 3,
+    fontSize: 11,
+    color: "#6f879b"
+  },
+  dailyList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10
+  },
+  dailyItem: {
+    padding: 12,
+    borderRadius: 14,
+    border: "1px solid rgba(125,211,252,0.12)",
+    background: "rgba(255,255,255,0.03)"
+  },
+  dailyItemText: {
+    color: "#e6f3ff",
+    fontSize: 14,
+    fontWeight: 700,
+    marginBottom: 10,
+    lineHeight: 1.45
+  },
+  dailyActions: {
+    display: "flex",
+    gap: 7,
+    flexWrap: "wrap"
+  },
+  dailyDoneButton: {
+    flex: 1,
+    minWidth: 70,
+    border: "1px solid rgba(125,211,252,0.22)",
+    background: "rgba(56,189,248,0.1)",
+    color: "#bae6fd",
+    borderRadius: 999,
+    padding: "8px 9px",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer"
+  },
+  dailyStillButton: {
+    flex: 1.2,
+    minWidth: 85,
+    border: "1px solid rgba(125,211,252,0.16)",
+    background: "rgba(255,255,255,0.03)",
+    color: "#dbeafe",
+    borderRadius: 999,
+    padding: "8px 9px",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer"
+  },
+  dailyNotTodayButton: {
+    flex: 1,
+    minWidth: 78,
+    border: "1px solid rgba(148,163,184,0.14)",
+    background: "rgba(148,163,184,0.06)",
+    color: "#a8bdd0",
+    borderRadius: 999,
+    padding: "8px 9px",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer"
   },
   stepFor: {
     marginTop: 8,
