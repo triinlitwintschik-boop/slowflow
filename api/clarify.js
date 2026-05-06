@@ -26,10 +26,25 @@ export default async function handler(req, res) {
     const normalize = (value) =>
       cleanText(value).toLowerCase().replace(/[,\s]+/g, " ");
 
-    const includesAny = (value, keywords) => {
+    const escapeRegExp = (value) =>
+      String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const includesKeyword = (value, keyword) => {
       const text = normalize(value);
-      return keywords.some((keyword) => text.includes(keyword));
+      const key = normalize(keyword);
+
+      if (!key) return false;
+
+      if (key.includes(" ")) {
+        return text.includes(key);
+      }
+
+      const pattern = new RegExp(`(^|\\s)${escapeRegExp(key)}($|\\s)`, "i");
+      return pattern.test(text);
     };
+
+    const includesAny = (value, keywords) =>
+      keywords.some((keyword) => includesKeyword(value, keyword));
 
     const splitInputIntoTasks = (value) =>
       String(value)
@@ -44,12 +59,12 @@ export default async function handler(req, res) {
       return (
         /[õäöü]/i.test(value) ||
         [
-          "ma ", "mul ", "mulle ", "minu ", "ei ", "ja ", "vaja ", "pean ",
+          "ma", "mul", "mulle", "minu", "ei", "ja", "vaja", "pean",
           "arst", "arve", "korista", "jaluta", "trenn", "pilet", "helista",
           "kirjuta", "vasta", "pesu", "õue", "koer", "kass", "lemmikloom",
           "täna", "õhtuks", "homseks", "restoran", "broneeri", "osta",
-          "maksa", "tee", "mine", "loe", "õpi", "sõbranna"
-        ].some((word) => text.includes(word))
+          "maksa", "tee", "mine", "loe", "õpi", "sõbranna", "lae"
+        ].some((word) => includesKeyword(text, word))
       );
     };
 
@@ -88,17 +103,24 @@ export default async function handler(req, res) {
 
     const paymentKeywords = [
       "pay bill", "pay bills", "pay invoice", "invoice", "bill", "bills",
-      "rent", "electricity", "electricity bill", "arve", "arved",
-      "maksa arve", "maksa arved", "maksa", "tasu arve", "tasuda arve",
-      "üür", "elekter", "elektriarve"
+      "electricity", "electricity bill",
+      "arve", "arved", "maksa arve", "maksa arved", "maksa",
+      "tasu arve", "tasuda arve", "üür", "elekter", "elektriarve"
     ];
 
     const shoppingKeywords = [
       "shopping list", "grocery list", "buy milk", "buy groceries", "groceries",
-      "shopping", "milk", "food", "dinner", "party",
+      "shopping", "milk", "food", "dinner", "party", "order", "buy",
       "ostunimekiri", "ostu nimekiri", "osta piima", "osta", "poenimekiri",
       "pood", "poodi", "toit", "söök", "õhtusöök", "õhtuse peo", "pidu",
-      "peo jaoks", "piim"
+      "peo jaoks", "piim", "telli", "tellida", "kaitsmed"
+    ];
+
+    const appSetupKeywords = [
+      "download app", "install app", "parental control app", "set up app",
+      "app to tablet", "tablet app",
+      "lae app", "lae parental control app", "installi app", "pane app",
+      "tahvlisse", "lapse tahvlisse", "parental control", "äpp", "api"
     ];
 
     const ticketKeywords = [
@@ -151,6 +173,7 @@ export default async function handler(req, res) {
     const isCommunication = (value) => includesAny(value, communicationKeywords);
     const isPayment = (value) => includesAny(value, paymentKeywords);
     const isShopping = (value) => includesAny(value, shoppingKeywords);
+    const isAppSetup = (value) => includesAny(value, appSetupKeywords);
     const isTicket = (value) => includesAny(value, ticketKeywords);
 
     const isPetCare = (value) => {
@@ -176,6 +199,7 @@ export default async function handler(req, res) {
       isCommunication(input) ||
       isPayment(input) ||
       isShopping(input) ||
+      isAppSetup(input) ||
       isTicket(input) ||
       isPetCare(input) ||
       isSelfCare(input) ||
@@ -268,6 +292,7 @@ Return exactly:
       if (isPayment(text)) return 105;
       if (isPetCare(text)) return 100;
       if (isCommunication(text)) return 95;
+      if (isAppSetup(text)) return 93;
       if (isTicket(text)) return 90;
 
       if (isShopping(text)) {
@@ -289,7 +314,7 @@ Return exactly:
       .filter((task) => {
         const score = scoreTask(task);
 
-        if (isShopping(task) && !isTimeSensitive(task)) {
+        if (isShopping(task) && !isTimeSensitive(task) && !isAppSetup(task)) {
           return false;
         }
 
@@ -315,6 +340,12 @@ Return exactly:
 
     const makeMicroStep = (task) => {
       const text = normalize(task);
+
+      if (isAppSetup(task)) {
+        return estonian
+          ? "Ava tahvel ja otsi app üles"
+          : "Open the tablet and find the app";
+      }
 
       if (isShopping(task)) {
         return estonian
