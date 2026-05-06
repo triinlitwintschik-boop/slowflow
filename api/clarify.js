@@ -59,7 +59,7 @@ export default async function handler(req, res) {
       "arst", "arsti", "arstile", "arstiaeg", "arsti aeg", "hambaarst",
       "hambaarsti", "hambaarstiaeg", "terapeut", "kohtumine", "broneeri",
       "broneerida", "broneering", "pane aeg", "panna aeg", "lepi aeg",
-      "leppida aeg", "aeg kokku"
+      "leppida aeg", "aeg kokku", "restoran", "restorani"
     ];
 
     const communicationKeywords = [
@@ -74,6 +74,14 @@ export default async function handler(req, res) {
       "rent", "electricity", "electricity bill", "arve", "arved",
       "maksa arve", "maksa arved", "maksa", "tasu arve", "tasuda arve",
       "üür", "elekter", "elektriarve"
+    ];
+
+    const shoppingKeywords = [
+      "shopping list", "grocery list", "buy milk", "buy groceries", "groceries",
+      "shopping", "milk", "food", "dinner", "party",
+      "ostunimekiri", "ostu nimekiri", "osta piima", "osta", "poenimekiri",
+      "pood", "poodi", "toit", "söök", "õhtusöök", "õhtuse peo", "pidu",
+      "peo jaoks", "piim"
     ];
 
     const ticketKeywords = [
@@ -106,7 +114,7 @@ export default async function handler(req, res) {
     const waitKeywords = [
       "clean", "laundry", "read", "reading", "book", "video", "tiktok",
       "learn", "study", "korista", "koristada", "köök", "kööki", "pesu",
-      "loe", "lugeda", "raamat", "õpi"
+      "loe", "lugeda", "raamat", "õpi", "harjuta"
     ];
 
     const letGoKeywords = [
@@ -121,18 +129,10 @@ export default async function handler(req, res) {
       "ei saa aru", "kinni jooksnud", "pea on tühi", "liiga palju"
     ];
 
-    const prohibitedOneStepKeywords = [
-      "clean", "cleaning", "laundry", "tidy", "organize room",
-      "walk the dog", "go for a walk", "walk", "run", "running", "exercise",
-      "workout", "gym", "cook", "cooking", "study", "read the book",
-      "korista", "koristada", "pesu", "jaluta", "jalutama", "koeraga jalutama",
-      "jooksma", "trenn", "trenni", "jõusaal", "kokka", "süüa tegema",
-      "õpi", "õppida", "loe raamatut"
-    ];
-
     const isAppointment = (value) => includesAny(value, appointmentKeywords);
     const isCommunication = (value) => includesAny(value, communicationKeywords);
     const isPayment = (value) => includesAny(value, paymentKeywords);
+    const isShopping = (value) => includesAny(value, shoppingKeywords);
     const isTicket = (value) => includesAny(value, ticketKeywords);
 
     const isPetCare = (value) => {
@@ -156,6 +156,7 @@ export default async function handler(req, res) {
       isAppointment(input) ||
       isCommunication(input) ||
       isPayment(input) ||
+      isShopping(input) ||
       isTicket(input) ||
       isPetCare(input) ||
       isSelfCare(input) ||
@@ -176,33 +177,16 @@ Language rule:
 
 Rules:
 - Write a short warm summary.
-- Suggest one next step.
 - Do not invent tasks.
 - Do not translate tasks.
 - Do not add punctuation at the end.
-
-One small step rule:
-- The next step must take under 5 minutes.
-- It must be a starting action, not the full task.
-- It must be physically small and immediately actionable.
-- Do NOT suggest full activities like cleaning, exercising, walking the dog, going to the gym, cooking, studying, reading a book, doing laundry, or similar multi-step tasks.
-- Instead, shrink them into a tiny starter action.
-- Good examples:
-  - Open the email draft
-  - Write the first sentence
-  - Put the bill on the table
-  - Put on your shoes
-  - Put the dog leash by the door
-  - Pick up 3 items
-  - Set a 5-minute timer
 
 Input:
 """${input}"""
 
 Return exactly:
 {
-  "summary": "string",
-  "next_step_under_5_min": "string"
+  "summary": "string"
 }
 `;
 
@@ -241,8 +225,7 @@ Return exactly:
     let parsed = {
       summary: estonian
         ? "Sul on mitu asja korraga peas. Võtame sellest ainult ühe väikese järgmise sammu"
-        : "You have a few things on your mind. Let’s pick one small next step",
-      next_step_under_5_min: ""
+        : "You have a few things on your mind. Let’s pick one small next step"
     };
 
     try {
@@ -255,13 +238,16 @@ Return exactly:
 
     const scoreTask = (text) => {
       if (isLetGo(text)) return -100;
-      if (isAppointment(text)) return 100;
-      if (isCommunication(text)) return 95;
-      if (isPayment(text)) return 90;
-      if (isPetCare(text)) return 88;
-      if (isTicket(text)) return 85;
+
+      if (isShopping(text)) return 98;
+      if (isPetCare(text)) return 96;
+      if (isPayment(text)) return 94;
+      if (isCommunication(text)) return 92;
+      if (isAppointment(text)) return 90;
+      if (isTicket(text)) return 86;
       if (isSelfCare(text)) return 80;
       if (isWait(text)) return 10;
+
       return 40;
     };
 
@@ -289,33 +275,12 @@ Return exactly:
       })
       .filter((item) => item.text && item.text !== "LET_GO");
 
-    const finalActItems = items.filter((item) => item.category === "ACT");
-
     const makeMicroStep = (task) => {
       const text = normalize(task);
 
-      if (isAppointment(task)) {
-        return estonian
-          ? "Ava kalender ja vaata esimest vaba aega"
-          : "Open your calendar and check the first free time";
-      }
-
-      if (isCommunication(task)) {
-        if (text.includes("call") || text.includes("helista") || text.includes("kõne")) {
-          return estonian
-            ? "Ava kontakt ja kirjuta valmis üks lause"
-            : "Open the contact and write one sentence first";
-        }
-
-        return estonian
-          ? "Ava sõnum või e-kiri ja kirjuta esimene lause"
-          : "Open the message or email and write the first sentence";
-      }
-
-      if (isPayment(task)) {
-        return estonian
-          ? "Ava arve ja kontrolli summa üle"
-          : "Open the bill and check the amount";
+      if (isShopping(task)) {
+        if (estonian) return "Kirjuta ostunimekirja esimene asi";
+        return "Write the first item on the shopping list";
       }
 
       if (isPetCare(task)) {
@@ -352,6 +317,34 @@ Return exactly:
           : "Put one pet-care item ready";
       }
 
+      if (isPayment(task)) {
+        return estonian
+          ? "Ava arve ja kontrolli summa üle"
+          : "Open the bill and check the amount";
+      }
+
+      if (isCommunication(task)) {
+        if (
+          text.includes("call") ||
+          text.includes("helista") ||
+          text.includes("kõne")
+        ) {
+          return estonian
+            ? "Ava kontakt ja kirjuta valmis üks lause"
+            : "Open the contact and write one sentence first";
+        }
+
+        return estonian
+          ? "Ava sõnum või e-kiri ja kirjuta esimene lause"
+          : "Open the message or email and write the first sentence";
+      }
+
+      if (isAppointment(task)) {
+        return estonian
+          ? "Ava kalender ja vaata esimest vaba aega"
+          : "Open your calendar and check the first free time";
+      }
+
       if (isTicket(task)) {
         return estonian
           ? "Ava piletileht ja vaata esimest sobivat varianti"
@@ -359,81 +352,6 @@ Return exactly:
       }
 
       if (isSelfCare(task)) {
-        if (
-          text.includes("walk") ||
-          text.includes("jaluta") ||
-          text.includes("jalutama") ||
-          text.includes("õue") ||
-          text.includes("fresh air")
-        ) {
-          return estonian ? "Pane jalanõud valmis" : "Put your shoes by the door";
-        }
-
-        if (
-          text.includes("gym") ||
-          text.includes("workout") ||
-          text.includes("exercise") ||
-          text.includes("trenn") ||
-          text.includes("trenni") ||
-          text.includes("jõusaal")
-        ) {
-          return estonian ? "Pane trenniriided valmis" : "Put your workout clothes ready";
-        }
-
-        if (
-          text.includes("bath") ||
-          text.includes("vann") ||
-          text.includes("shower") ||
-          text.includes("dušš") ||
-          text.includes("duss")
-        ) {
-          return estonian ? "Pane vann või dušš valmis" : "Turn on the bath or shower";
-        }
-
-        if (
-          text.includes("sleep") ||
-          text.includes("rest") ||
-          text.includes("puhka") ||
-          text.includes("maga") ||
-          text.includes("uni")
-        ) {
-          return estonian
-            ? "Pane telefon kõrvale kaheks minutiks"
-            : "Put your phone away for two minutes";
-        }
-
-        return estonian
-          ? "Tee üks rahulik hingetõmme ja vali üks väike algus"
-          : "Take one slow breath and choose one tiny start";
-      }
-
-      if (isWait(task)) {
-        if (
-          text.includes("clean") ||
-          text.includes("korista") ||
-          text.includes("tidy")
-        ) {
-          return estonian ? "Korja üles 3 asja" : "Pick up 3 items";
-        }
-
-        if (text.includes("laundry") || text.includes("pesu")) {
-          return estonian
-            ? "Pane pesu ühte kohta kokku"
-            : "Put the laundry in one place";
-        }
-
-        if (
-          text.includes("read") ||
-          text.includes("loe") ||
-          text.includes("lugeda") ||
-          text.includes("book") ||
-          text.includes("raamat")
-        ) {
-          return estonian
-            ? "Ava raamat või tekst õigest kohast"
-            : "Open the book or text to the right page";
-        }
-
         return estonian
           ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast"
           : "Set a 5-minute timer and start with the smallest part";
@@ -443,63 +361,6 @@ Return exactly:
         ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast"
         : "Set a 5-minute timer and start with the smallest part";
     };
-
-    const isValidOneStep = (step) => {
-      const value = cleanText(step);
-
-      if (!value) return false;
-
-      const text = normalize(value);
-      const wordCount = value.split(/\s+/).filter(Boolean).length;
-
-      if (wordCount > 14) return false;
-      if (includesAny(value, prohibitedOneStepKeywords)) return false;
-
-      const tooBroadPatterns = [
-        /^clean\b/i,
-        /^walk\b/i,
-        /^walk the dog\b/i,
-        /^exercise\b/i,
-        /^work out\b/i,
-        /^go to the gym\b/i,
-        /^cook\b/i,
-        /^study\b/i,
-        /^read\b/i,
-        /^do laundry\b/i,
-        /^korista\b/i,
-        /^jaluta\b/i,
-        /^jaluta koeraga\b/i,
-        /^mine jalutama\b/i,
-        /^tee trenni\b/i,
-        /^mine trenni\b/i,
-        /^mine jõusaali\b/i,
-        /^õpi\b/i,
-        /^loe\b/i,
-        /^pese pesu\b/i
-      ];
-
-      if (tooBroadPatterns.some((pattern) => pattern.test(value))) return false;
-
-      const starterVerbs = [
-        "open", "write", "put", "pick", "set", "check", "send", "start",
-        "choose", "place", "turn", "take", "get",
-        "ava", "kirjuta", "pane", "korja", "kontrolli", "vali", "alusta",
-        "vaata", "tee", "võta"
-      ];
-
-      return starterVerbs.some((verb) => text.startsWith(verb));
-    };
-
-    const chooseBestTaskForStep = () =>
-      finalActItems.find((item) => isAppointment(item.text))?.text ||
-      finalActItems.find((item) => isCommunication(item.text))?.text ||
-      finalActItems.find((item) => isPayment(item.text))?.text ||
-      finalActItems.find((item) => isPetCare(item.text))?.text ||
-      finalActItems.find((item) => isTicket(item.text))?.text ||
-      finalActItems.find((item) => isSelfCare(item.text))?.text ||
-      finalActItems[0]?.text ||
-      originalTasks[0] ||
-      "";
 
     if (isAbstract && !looksLikeTaskList) {
       const abstractStep = estonian
@@ -518,19 +379,8 @@ Return exactly:
       });
     }
 
-    const bestTask = chooseBestTaskForStep();
-
-    let nextStep = cleanText(parsed.next_step_under_5_min);
-
-    if (!isValidOneStep(nextStep)) {
-      nextStep = makeMicroStep(bestTask);
-    }
-
-    if (!isValidOneStep(nextStep)) {
-      nextStep = estonian
-        ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast"
-        : "Set a 5-minute timer and start with the smallest part";
-    }
+    const bestTask = actTasks[0] || originalTasks[0] || "";
+    const nextStep = makeMicroStep(bestTask);
 
     return res.status(200).json({
       summary:
