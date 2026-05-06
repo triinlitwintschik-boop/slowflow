@@ -46,20 +46,32 @@ export default async function handler(req, res) {
         [
           "ma ", "mul ", "mulle ", "minu ", "ei ", "ja ", "vaja ", "pean ",
           "arst", "arve", "korista", "jaluta", "trenn", "pilet", "helista",
-          "kirjuta", "vasta", "pesu", "õue", "koer", "kass", "lemmikloom"
+          "kirjuta", "vasta", "pesu", "õue", "koer", "kass", "lemmikloom",
+          "täna", "õhtuks", "homseks", "restoran"
         ].some((word) => text.includes(word))
       );
     };
 
     const estonian = isEstonianInput(input);
 
+    const timeSensitiveKeywords = [
+      "today", "tonight", "by tonight", "this evening", "tomorrow",
+      "by tomorrow", "deadline", "due today", "due tomorrow", "urgent",
+      "asap", "before", "at 5", "at 6", "at 7", "at 8", "at 9",
+      "täna", "tänaseks", "õhtuks", "täna õhtuks", "õhtul", "homseks",
+      "homme", "deadline", "tähtaeg", "kiire", "kell", "enne õhtut"
+    ];
+
     const appointmentKeywords = [
       "doctor", "dentist", "therapist", "appointment", "meeting", "booking",
       "reservation", "reserve", "calendar", "schedule", "time slot",
+      "restaurant", "book table", "book a table", "reserve table",
+      "dinner reservation", "table tonight",
       "arst", "arsti", "arstile", "arstiaeg", "arsti aeg", "hambaarst",
       "hambaarsti", "hambaarstiaeg", "terapeut", "kohtumine", "broneeri",
       "broneerida", "broneering", "pane aeg", "panna aeg", "lepi aeg",
-      "leppida aeg", "aeg kokku", "restoran", "restorani"
+      "leppida aeg", "aeg kokku", "restoran", "restorani", "broneeri laud",
+      "laud õhtuks", "broneeri restoran", "restoran õhtuks"
     ];
 
     const communicationKeywords = [
@@ -129,6 +141,7 @@ export default async function handler(req, res) {
       "ei saa aru", "kinni jooksnud", "pea on tühi", "liiga palju"
     ];
 
+    const isTimeSensitive = (value) => includesAny(value, timeSensitiveKeywords);
     const isAppointment = (value) => includesAny(value, appointmentKeywords);
     const isCommunication = (value) => includesAny(value, communicationKeywords);
     const isPayment = (value) => includesAny(value, paymentKeywords);
@@ -153,6 +166,7 @@ export default async function handler(req, res) {
 
     const hasSeparators = /,|\n|;/.test(input);
     const hasStrongTaskSignal =
+      isTimeSensitive(input) ||
       isAppointment(input) ||
       isCommunication(input) ||
       isPayment(input) ||
@@ -239,6 +253,7 @@ Return exactly:
     const scoreTask = (text) => {
       if (isLetGo(text)) return -100;
 
+      if (isTimeSensitive(text)) return 110;
       if (isShopping(text)) return 98;
       if (isPetCare(text)) return 96;
       if (isPayment(text)) return 94;
@@ -279,8 +294,9 @@ Return exactly:
       const text = normalize(task);
 
       if (isShopping(task)) {
-        if (estonian) return "Kirjuta ostunimekirja esimene asi";
-        return "Write the first item on the shopping list";
+        return estonian
+          ? "Kirjuta ostunimekirja esimene asi"
+          : "Write the first item on the shopping list";
       }
 
       if (isPetCare(task)) {
@@ -340,6 +356,17 @@ Return exactly:
       }
 
       if (isAppointment(task)) {
+        if (
+          text.includes("restoran") ||
+          text.includes("restaurant") ||
+          text.includes("laud") ||
+          text.includes("table")
+        ) {
+          return estonian
+            ? "Ava restorani broneerimise leht"
+            : "Open the restaurant booking page";
+        }
+
         return estonian
           ? "Ava kalender ja vaata esimest vaba aega"
           : "Open your calendar and check the first free time";
@@ -355,6 +382,12 @@ Return exactly:
         return estonian
           ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast"
           : "Set a 5-minute timer and start with the smallest part";
+      }
+
+      if (isTimeSensitive(task)) {
+        return estonian
+          ? "Ava see asi ja tee esimene väike liigutus"
+          : "Open it and take the first small action";
       }
 
       return estonian
