@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 const DONE_STORAGE_KEY = "slowflow-done-items";
 const HISTORY_STORAGE_KEY = "slowflow-sessions";
 const DAILY_SKIP_STORAGE_KEY = "slowflow-daily-skipped-items";
+const TODAY_FEEL_STORAGE_KEY = "slowflow-today-feels-like";
 const TODAY_KEY = new Date().toISOString().slice(0, 10);
 
 export default function App() {
@@ -14,6 +15,21 @@ export default function App() {
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [animatingDoneKey, setAnimatingDoneKey] = useState("");
+
+  const [todayFeelsLike, setTodayFeelsLike] = useState(() => {
+    try {
+      const saved = localStorage.getItem(TODAY_FEEL_STORAGE_KEY);
+      const parsed = saved ? JSON.parse(saved) : null;
+
+      if (parsed?.date === TODAY_KEY && parsed?.value) {
+        return parsed.value;
+      }
+
+      return "okay";
+    } catch {
+      return "okay";
+    }
+  });
 
   const [history, setHistory] = useState(() => {
     try {
@@ -77,6 +93,11 @@ export default function App() {
     }, 220);
   }
 
+  function markOneSmallStepDone() {
+    if (!result?.next_step_for) return;
+    toggleDone("ACT", result.next_step_for);
+  }
+
   useEffect(() => {
     try {
       localStorage.setItem(DONE_STORAGE_KEY, JSON.stringify(doneItems));
@@ -94,6 +115,18 @@ export default function App() {
       );
     } catch {}
   }, [skippedCarryKeys]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        TODAY_FEEL_STORAGE_KEY,
+        JSON.stringify({
+          date: TODAY_KEY,
+          value: todayFeelsLike
+        })
+      );
+    } catch {}
+  }, [todayFeelsLike]);
 
   function saveSession(input, output) {
     const newSession = {
@@ -136,14 +169,31 @@ export default function App() {
     } catch {}
   }
 
-  const actRaw = useMemo(
+  const todayActLimit = todayFeelsLike === "busy" ? 2 : 3;
+
+  const actRawAll = useMemo(
     () => result?.items?.filter((item) => item.category === "ACT") || [],
     [result]
   );
 
-  const notNowRaw = useMemo(
+  const visibleActRaw = useMemo(
+    () => actRawAll.slice(0, todayActLimit),
+    [actRawAll, todayActLimit]
+  );
+
+  const overflowActRaw = useMemo(
+    () => actRawAll.slice(todayActLimit),
+    [actRawAll, todayActLimit]
+  );
+
+  const notNowRawBase = useMemo(
     () => result?.items?.filter((item) => item.category === "NOT_NOW") || [],
     [result]
+  );
+
+  const notNowRaw = useMemo(
+    () => [...overflowActRaw, ...notNowRawBase],
+    [overflowActRaw, notNowRawBase]
   );
 
   const letGoRaw = useMemo(
@@ -153,9 +203,7 @@ export default function App() {
 
   const allCurrentItemKeys = useMemo(() => {
     const allItems = result?.items || [];
-    return new Set(
-      allItems.map((item) => getItemKey(item.category, item.text))
-    );
+    return new Set(allItems.map((item) => getItemKey(item.category, item.text)));
   }, [result]);
 
   const allCurrentTextKeys = useMemo(() => {
@@ -163,26 +211,28 @@ export default function App() {
     return new Set(allItems.map((item) => normalizeText(item.text)));
   }, [result]);
 
-  const actWithoutDuplicate = actRaw;
-
   const act = useMemo(
-    () => actWithoutDuplicate.filter((item) => !isDone("ACT", item.text)),
-    [actWithoutDuplicate, doneItems]
+    () => visibleActRaw.filter((item) => !isDone("ACT", item.text)),
+    [visibleActRaw, doneItems]
   );
 
   const actDone = useMemo(
-    () => actWithoutDuplicate.filter((item) => isDone("ACT", item.text)),
-    [actWithoutDuplicate, doneItems]
+    () => actRawAll.filter((item) => isDone("ACT", item.text)),
+    [actRawAll, doneItems]
   );
 
   const notNow = useMemo(
-    () => notNowRaw.filter((item) => !isDone("NOT_NOW", item.text)),
-    [notNowRaw, doneItems]
+    () =>
+      notNowRaw.filter((item) => {
+        const category = overflowActRaw.includes(item) ? "ACT" : "NOT_NOW";
+        return !isDone(category, item.text);
+      }),
+    [notNowRaw, overflowActRaw, doneItems]
   );
 
   const notNowDone = useMemo(
-    () => notNowRaw.filter((item) => isDone("NOT_NOW", item.text)),
-    [notNowRaw, doneItems]
+    () => notNowRawBase.filter((item) => isDone("NOT_NOW", item.text)),
+    [notNowRawBase, doneItems]
   );
 
   const letGo = useMemo(
@@ -650,6 +700,36 @@ END:VCALENDAR
           <p style={styles.punchline}>Stop overthinking. Start moving.</p>
         </div>
 
+        <div style={styles.todayCard}>
+          <div style={styles.todayLabel}>Today feels like</div>
+
+          <div style={styles.todayOptions}>
+            {[
+              ["light", "Light"],
+              ["okay", "Okay"],
+              ["busy", "Busy"]
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTodayFeelsLike(value)}
+                style={{
+                  ...styles.todayOption,
+                  ...(todayFeelsLike === value ? styles.todayOptionActive : {})
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={styles.todayHint}>
+            {todayFeelsLike === "busy"
+              ? "Keeping today extra small: max 2 Do today items"
+              : "Keeping today focused: max 3 Do today items"}
+          </div>
+        </div>
+
         <div style={styles.inputCard}>
           <label style={styles.label}>Brain dump</label>
 
@@ -700,22 +780,28 @@ END:VCALENDAR
 
         {error ? <div style={styles.errorCard}>{error}</div> : null}
 
-        {!loading && carryOverItems.length > 0 ? (
+        {!loading ? (
           <div style={{ ...styles.card, animation: "floatIn 0.22s ease" }}>
             <div style={styles.cardHeader}>
               <div>
                 <h3 style={styles.cardTitle}>🌅 Start today</h3>
                 <div style={styles.dailySubtext}>
-                  These were still open from recent sessions.
+                  {carryOverItems.length > 0
+                    ? "These were still open from recent sessions."
+                    : "Nothing carried over. Fresh start."}
                 </div>
               </div>
 
               <div style={styles.sectionPill}>{carryOverItems.length}</div>
             </div>
 
-            <div style={styles.dailyList}>
-              {carryOverItems.map((item) => renderCarryOverItem(item))}
-            </div>
+            {carryOverItems.length > 0 ? (
+              <div style={styles.dailyList}>
+                {carryOverItems.map((item) => renderCarryOverItem(item))}
+              </div>
+            ) : (
+              <div style={styles.emptyText}>You can begin with a fresh brain dump.</div>
+            )}
           </div>
         ) : null}
 
@@ -761,18 +847,28 @@ END:VCALENDAR
               ) : null}
 
               {result?.next_step_under_5_min ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    addToCalendar(
-                      result.next_step_under_5_min,
-                      result.next_step_for
-                    )
-                  }
-                  style={styles.calendarButton}
-                >
-                  + Add to calendar (5 min)
-                </button>
+                <div style={styles.stepActions}>
+                  <button
+                    type="button"
+                    onClick={markOneSmallStepDone}
+                    style={styles.stepDoneButton}
+                  >
+                    Done
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      addToCalendar(
+                        result.next_step_under_5_min,
+                        result.next_step_for
+                      )
+                    }
+                    style={styles.calendarButton}
+                  >
+                    + Add to calendar
+                  </button>
+                </div>
               ) : null}
             </div>
 
@@ -946,10 +1042,19 @@ END:VCALENDAR
                     <div style={styles.groupCount}>{notNow.length}</div>
                   </div>
 
+                  <div style={styles.softHint}>
+                    These can stay out of your head for now.
+                  </div>
+
                   <div style={styles.list}>
-                    {notNow.map((item) =>
-                      renderItem(item.text, "soft", "NOT_NOW")
-                    )}
+                    {notNow.map((item) => {
+                      const isOverflowAct = overflowActRaw.includes(item);
+                      return renderItem(
+                        item.text,
+                        "soft",
+                        isOverflowAct ? "ACT" : "NOT_NOW"
+                      );
+                    })}
                   </div>
                 </div>
               ) : null}
@@ -1096,6 +1201,45 @@ const styles = {
     marginTop: 0,
     marginBottom: 14,
     fontWeight: 700
+  },
+  todayCard: {
+    background: "rgba(255,255,255,0.035)",
+    border: "1px solid rgba(125,211,252,0.1)",
+    borderRadius: 18,
+    padding: 12,
+    marginBottom: 12
+  },
+  todayLabel: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "#d6e6f5",
+    marginBottom: 8
+  },
+  todayOptions: {
+    display: "flex",
+    gap: 8
+  },
+  todayOption: {
+    flex: 1,
+    border: "1px solid rgba(125,211,252,0.12)",
+    background: "rgba(255,255,255,0.03)",
+    color: "#a8bdd0",
+    borderRadius: 999,
+    padding: "8px 9px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer"
+  },
+  todayOptionActive: {
+    background: "rgba(56,189,248,0.12)",
+    color: "#bae6fd",
+    border: "1px solid rgba(125,211,252,0.24)"
+  },
+  todayHint: {
+    marginTop: 8,
+    fontSize: 11,
+    color: "#6f879b",
+    lineHeight: 1.45
   },
   inputCard: {
     background: "rgba(255,255,255,0.04)",
@@ -1252,8 +1396,23 @@ const styles = {
     color: "#8ea3b7",
     lineHeight: 1.5
   },
-  calendarButton: {
+  stepActions: {
+    display: "flex",
+    gap: 8,
     marginTop: 10,
+    flexWrap: "wrap"
+  },
+  stepDoneButton: {
+    border: "1px solid rgba(125,211,252,0.22)",
+    background: "rgba(56,189,248,0.1)",
+    color: "#bae6fd",
+    borderRadius: 999,
+    padding: "8px 11px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer"
+  },
+  calendarButton: {
     border: "1px solid rgba(125,211,252,0.16)",
     background: "rgba(255,255,255,0.03)",
     color: "#dbeafe",
@@ -1262,6 +1421,12 @@ const styles = {
     fontSize: 12,
     fontWeight: 800,
     cursor: "pointer"
+  },
+  softHint: {
+    color: "#8ea3b7",
+    fontSize: 12,
+    marginBottom: 8,
+    lineHeight: 1.5
   },
   focusCard: {
     background:
