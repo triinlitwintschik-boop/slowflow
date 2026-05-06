@@ -289,15 +289,15 @@ Return exactly:
 
       if (isTimeSensitive(text)) return 120;
       if (isAppointment(text)) return 110;
+      if (isAppSetup(text)) return 108;
       if (isPayment(text)) return 105;
       if (isPetCare(text)) return 100;
       if (isCommunication(text)) return 95;
-      if (isAppSetup(text)) return 93;
       if (isTicket(text)) return 90;
 
       if (isShopping(text)) {
-        if (isTimeSensitive(text)) return 98;
-        return 45;
+        if (isTimeSensitive(text)) return 95;
+        return 25;
       }
 
       if (isSelfCare(text)) return 70;
