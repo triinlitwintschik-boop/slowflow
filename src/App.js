@@ -151,6 +151,18 @@ export default function App() {
     [result]
   );
 
+  const allCurrentItemKeys = useMemo(() => {
+    const allItems = result?.items || [];
+    return new Set(
+      allItems.map((item) => getItemKey(item.category, item.text))
+    );
+  }, [result]);
+
+  const allCurrentTextKeys = useMemo(() => {
+    const allItems = result?.items || [];
+    return new Set(allItems.map((item) => normalizeText(item.text)));
+  }, [result]);
+
   const actWithoutDuplicate = actRaw;
 
   const act = useMemo(
@@ -191,26 +203,25 @@ export default function App() {
   const carryOverItems = useMemo(() => {
     const seen = new Set();
     const skipped = new Set(skippedCarryKeys);
-    const currentActKeys = new Set(
-      actWithoutDuplicate.map((item) => getItemKey("ACT", item.text))
-    );
 
     return history
       .flatMap((session) => session?.result?.items || [])
       .filter((item) => item.category === "ACT")
       .filter((item) => {
-        const key = getItemKey("ACT", item.text);
+        const actKey = getItemKey("ACT", item.text);
+        const textKey = normalizeText(item.text);
 
-        if (seen.has(key)) return false;
-        if (skipped.has(key)) return false;
-        if (currentActKeys.has(key)) return false;
+        if (seen.has(actKey)) return false;
+        if (skipped.has(actKey)) return false;
+        if (allCurrentItemKeys.has(actKey)) return false;
+        if (allCurrentTextKeys.has(textKey)) return false;
         if (isDone("ACT", item.text)) return false;
 
-        seen.add(key);
+        seen.add(actKey);
         return true;
       })
       .slice(0, 3);
-  }, [history, doneItems, skippedCarryKeys, actWithoutDuplicate]);
+  }, [history, doneItems, skippedCarryKeys, allCurrentItemKeys, allCurrentTextKeys]);
 
   const currentFocusTask = act[0];
   const hasResult = !!result;
@@ -275,7 +286,7 @@ export default function App() {
     }
 
     if (!onlyAct && notNow.length > 0) {
-      lines.push("Can wait");
+      lines.push("Not for now");
       notNow.forEach((item) => lines.push(bullet(item.text)));
       lines.push("");
     }
@@ -909,8 +920,8 @@ END:VCALENDAR
                 <div style={styles.emptyState}>
                   <div style={styles.emptyTitle}>Nothing sorted yet.</div>
                   <div style={styles.emptyText}>
-                    Your thoughts will appear here as Do today, Can wait, Let
-                    go, and Done.
+                    Your thoughts will appear here as Do today, Not for now,
+                    Let go, and Done.
                   </div>
                 </div>
               ) : null}
@@ -931,7 +942,7 @@ END:VCALENDAR
               {notNow.length > 0 ? (
                 <div style={styles.group}>
                   <div style={styles.groupTop}>
-                    <h4 style={styles.groupTitle}>🕓 Can wait</h4>
+                    <h4 style={styles.groupTitle}>🕓 Not for now</h4>
                     <div style={styles.groupCount}>{notNow.length}</div>
                   </div>
 
