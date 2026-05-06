@@ -263,15 +263,20 @@ Return exactly:
     const scoreTask = (text) => {
       if (isLetGo(text)) return -100;
 
-      if (isTimeSensitive(text)) return 110;
-      if (isShopping(text)) return 98;
-      if (isPetCare(text)) return 96;
-      if (isPayment(text)) return 94;
-      if (isCommunication(text)) return 92;
-      if (isAppointment(text)) return 90;
-      if (isTicket(text)) return 86;
-      if (isSelfCare(text)) return 80;
-      if (isWait(text)) return 10;
+      if (isTimeSensitive(text)) return 120;
+      if (isAppointment(text)) return 110;
+      if (isPayment(text)) return 105;
+      if (isPetCare(text)) return 100;
+      if (isCommunication(text)) return 95;
+      if (isTicket(text)) return 90;
+
+      if (isShopping(text)) {
+        if (isTimeSensitive(text)) return 98;
+        return 45;
+      }
+
+      if (isSelfCare(text)) return 70;
+      if (isWait(text)) return 20;
 
       return 40;
     };
@@ -281,7 +286,15 @@ Return exactly:
     );
 
     const actTasks = sortedTasks
-      .filter((task) => scoreTask(task) >= 40)
+      .filter((task) => {
+        const score = scoreTask(task);
+
+        if (isShopping(task) && !isTimeSensitive(task)) {
+          return false;
+        }
+
+        return score >= 50;
+      })
       .slice(0, 3);
 
     const actKeys = new Set(actTasks.map((task) => normalize(task)));
