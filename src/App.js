@@ -629,12 +629,12 @@ END:VCALENDAR
           <section style={styles.previewGrid}>
             <div style={styles.previewCardLarge}>
               <div style={styles.previewLabel}>Brain dump</div>
-              <div style={styles.previewText}>reply to emails, book appointment, clean kitchen, walk dog, I feel overwhelmed...</div>
+              <div style={styles.previewText}>Write everything on your mind.<br />No filter. No structure.<br />Just get it out.</div>
               <div style={styles.previewButton}>Clear my mind</div>
             </div>
             <div style={styles.previewCard}>
               <div style={styles.previewLabel}>⚡ One small step</div>
-              <div style={styles.previewStep}>Open the message and write the first sentence</div>
+              <div style={styles.previewStep}>We’ll suggest one small step under 5 minutes.<br />You can actually do it.</div>
             </div>
             <div style={styles.previewCard}>
               <div style={styles.previewLabel}>📦 Sorted out</div>
@@ -650,10 +650,10 @@ END:VCALENDAR
               SlowFlow is not another complicated productivity system. It helps you stop spiraling, sort the noise, and start with one tiny action.
             </p>
             <div style={styles.featureGrid}>
-              <div style={styles.featureCard}>🧠 Brain dump first</div>
-              <div style={styles.featureCard}>⚡ One step under 5 min</div>
-              <div style={styles.featureCard}>🌅 Gentle daily reset</div>
-              <div style={styles.featureCard}>🧘 Let go of mental noise</div>
+              <div style={styles.featureCard}>Built for overwhelmed brains</div>
+              <div style={styles.featureCard}>One step under 5 min</div>
+              <div style={styles.featureCard}>Gentle daily reset</div>
+              <div style={styles.featureCard}>More clarity, less noise</div>
             </div>
           </section>
 
@@ -954,17 +954,19 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 54
+    marginBottom: 46,
+    paddingBottom: 18,
+    borderBottom: "1px solid rgba(125,211,252,0.08)"
   },
-  brandMark: { color: "#eaf3ff", fontWeight: 650, fontSize: 17, letterSpacing: "-0.02em" },
+  brandMark: { color: "#eaf3ff", fontWeight: 400, fontSize: 18, letterSpacing: "-0.01em" },
   navButton: {
     border: "1px solid rgba(125,211,252,0.16)",
-    background: "rgba(255,255,255,0.03)",
+    background: "rgba(125,211,252,0.08)",
     color: "#dbeafe",
     borderRadius: 999,
-    padding: "9px 13px",
+    padding: "9px 14px",
     fontSize: 12,
-    fontWeight: 800,
+    fontWeight: 400,
     cursor: "pointer"
   },
   landingHero: {
@@ -974,104 +976,106 @@ const styles = {
     animation: "floatIn 0.3s ease"
   },
   landingTitle: {
-    fontSize: "clamp(38px, 7vw, 68px)",
-    lineHeight: 1.08,
+    fontSize: "clamp(36px, 6.4vw, 62px)",
+    lineHeight: 1.15,
     margin: "18px 0 18px",
     color: "#eaf3ff",
-    letterSpacing: "-0.045em",
-    fontWeight: 500
-  },
-  landingSubtitle: {
-    maxWidth: 560,
-    margin: "0 auto",
-    color: "#a9bbce",
-    fontSize: 18,
-    lineHeight: 1.65,
-    fontWeight: 400
+    letterSpacing: "0.01em",
+    fontWeight: 300
   },
   landingTitleAccent: {
     color: "#7dd3fc",
-    fontWeight: 500
+    fontWeight: 300
+  },
+  landingSubtitle: {
+    maxWidth: 520,
+    margin: "0 auto",
+    color: "#a9bbce",
+    fontSize: 17,
+    lineHeight: 1.7,
+    fontWeight: 300
   },
   landingActions: { marginTop: 26, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 },
   primaryCta: {
-    border: "1px solid rgba(125,211,252,0.22)",
-    background: "linear-gradient(135deg, #0ea5e9 0%, #38bdf8 55%, #7dd3fc 100%)",
+    border: "1px solid rgba(125,211,252,0.18)",
+    background: "linear-gradient(135deg, #7dd3fc 0%, #38bdf8 100%)",
     color: "#041018",
-    borderRadius: 999,
-    padding: "15px 22px",
-    fontSize: 15,
-    fontWeight: 900,
+    borderRadius: 14,
+    padding: "13px 24px",
+    fontSize: 14,
+    fontWeight: 500,
     cursor: "pointer",
-    boxShadow: "0 0 26px rgba(56,189,248,0.26)"
+    boxShadow: "0 0 22px rgba(56,189,248,0.18)"
   },
   ctaNote: { color: "#6f879b", fontSize: 12 },
   previewGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-    gap: 12,
-    margin: "30px 0 28px"
+    gap: 14,
+    margin: "28px auto 36px",
+    maxWidth: 780
   },
   previewCardLarge: {
     gridRow: "span 2",
-    background: "rgba(255,255,255,0.045)",
+    background: "rgba(255,255,255,0.025)",
     border: "1px solid rgba(125,211,252,0.12)",
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 18,
-    boxShadow: "0 12px 28px rgba(0,0,0,0.28)"
+    boxShadow: "0 12px 28px rgba(0,0,0,0.18)"
   },
   previewCard: {
-    background: "rgba(255,255,255,0.045)",
+    background: "rgba(255,255,255,0.025)",
     border: "1px solid rgba(125,211,252,0.12)",
-    borderRadius: 22,
+    borderRadius: 20,
     padding: 18,
-    boxShadow: "0 12px 28px rgba(0,0,0,0.24)"
+    boxShadow: "0 12px 28px rgba(0,0,0,0.16)"
   },
-  previewLabel: { color: "#bae6fd", fontSize: 12, fontWeight: 900, marginBottom: 10 },
+  previewLabel: { color: "#dbeafe", fontSize: 14, fontWeight: 400, marginBottom: 12 },
   previewText: {
-    minHeight: 138,
-    color: "#dbeafe",
-    background: "rgba(2,6,8,0.36)",
-    border: "1px solid rgba(125,211,252,0.12)",
-    borderRadius: 16,
+    minHeight: 116,
+    color: "#cbd5e1",
+    background: "rgba(2,6,8,0.28)",
+    border: "1px solid rgba(125,211,252,0.1)",
+    borderRadius: 14,
     padding: 14,
-    lineHeight: 1.55,
-    fontSize: 14
+    lineHeight: 1.65,
+    fontSize: 14,
+    fontWeight: 300
   },
   previewButton: {
     marginTop: 12,
     textAlign: "center",
-    borderRadius: 14,
+    borderRadius: 12,
     padding: 12,
-    background: "rgba(56,189,248,0.14)",
+    background: "rgba(56,189,248,0.08)",
     color: "#bae6fd",
-    fontWeight: 900,
+    fontWeight: 400,
     fontSize: 13
   },
   previewStep: {
-    color: "#eaf3ff",
-    background: "rgba(125,211,252,0.05)",
-    border: "1px solid rgba(125,211,252,0.12)",
+    color: "#dbeafe",
+    background: "rgba(125,211,252,0.04)",
+    border: "1px solid rgba(125,211,252,0.1)",
     borderRadius: 14,
     padding: 13,
-    fontWeight: 650,
-    lineHeight: 1.45
+    fontWeight: 300,
+    lineHeight: 1.55
   },
   previewListItem: {
-    color: "#e6f3ff",
-    background: "rgba(255,255,255,0.04)",
+    color: "#dbeafe",
+    background: "rgba(255,255,255,0.035)",
     borderRadius: 12,
     padding: 10,
     marginTop: 8,
-    fontWeight: 800
+    fontWeight: 300
   },
   previewListItemMuted: {
     color: "#9fb2c6",
-    background: "rgba(148,163,184,0.06)",
+    background: "rgba(148,163,184,0.045)",
     borderRadius: 12,
     padding: 10,
     marginTop: 8,
-    fontWeight: 800
+    fontWeight: 300
   },
   landingSection: {
     textAlign: "center",
@@ -1081,13 +1085,13 @@ const styles = {
   },
   sectionTitle: {
     color: "#eaf3ff",
-    fontSize: "clamp(26px, 4.6vw, 40px)",
-    lineHeight: 1.12,
-    letterSpacing: "-0.035em",
-    margin: "0 0 12px",
-    fontWeight: 500
+    fontSize: "clamp(26px, 4.2vw, 38px)",
+    lineHeight: 1.18,
+    letterSpacing: "-0.02em",
+    margin: "0 0 14px",
+    fontWeight: 300
   },
-  sectionText: { color: "#9fb2c6", fontSize: 16, lineHeight: 1.7, margin: "0 auto", maxWidth: 620 },
+  sectionText: { color: "#9fb2c6", fontSize: 15, lineHeight: 1.75, margin: "0 auto", maxWidth: 620, fontWeight: 300 },
   featureGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
@@ -1096,11 +1100,11 @@ const styles = {
   },
   featureCard: {
     border: "1px solid rgba(125,211,252,0.1)",
-    background: "rgba(255,255,255,0.035)",
-    color: "#dbeafe",
+    background: "rgba(255,255,255,0.025)",
+    color: "#cbd5e1",
     borderRadius: 18,
     padding: 15,
-    fontWeight: 800
+    fontWeight: 300
   },
   finalCta: {
     textAlign: "center",
@@ -1110,7 +1114,7 @@ const styles = {
     padding: "34px 18px",
     marginTop: 24
   },
-  finalTitle: { color: "#eaf3ff", margin: "0 0 18px", fontSize: 28, letterSpacing: "-0.035em", fontWeight: 500 },
+  finalTitle: { color: "#eaf3ff", margin: "0 0 18px", fontSize: 28, letterSpacing: "-0.02em", fontWeight: 300 },
   hero: { marginBottom: 18 },
   topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 },
   linkButton: {
