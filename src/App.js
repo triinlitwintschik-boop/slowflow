@@ -612,7 +612,11 @@ END:VCALENDAR
 
           <section style={styles.landingHero}>
             <div style={styles.badge}>Calm clarity for overwhelmed brains</div>
-            <h1 style={styles.landingTitle}>When your head is full, start here.</h1>
+            <h1 style={styles.landingTitle}>
+              When your head is full,
+              <br />
+              <span style={styles.landingTitleAccent}>start here.</span>
+            </h1>
             <p style={styles.landingSubtitle}>
               Dump everything on your mind. SlowFlow helps you turn mental clutter into one clear next step.
             </p>
@@ -952,7 +956,7 @@ const styles = {
     alignItems: "center",
     marginBottom: 54
   },
-  brandMark: { color: "#f8fbff", fontWeight: 900, fontSize: 17 },
+  brandMark: { color: "#eaf3ff", fontWeight: 650, fontSize: 17, letterSpacing: "-0.02em" },
   navButton: {
     border: "1px solid rgba(125,211,252,0.16)",
     background: "rgba(255,255,255,0.03)",
@@ -966,23 +970,28 @@ const styles = {
   landingHero: {
     textAlign: "center",
     maxWidth: 720,
-    margin: "0 auto 34px",
+    margin: "0 auto 38px",
     animation: "floatIn 0.3s ease"
   },
   landingTitle: {
-    fontSize: "clamp(42px, 8vw, 78px)",
-    lineHeight: 0.95,
+    fontSize: "clamp(38px, 7vw, 68px)",
+    lineHeight: 1.08,
     margin: "18px 0 18px",
-    color: "#f8fbff",
-    letterSpacing: "-0.07em",
-    fontWeight: 950
+    color: "#eaf3ff",
+    letterSpacing: "-0.045em",
+    fontWeight: 500
   },
   landingSubtitle: {
-    maxWidth: 620,
+    maxWidth: 560,
     margin: "0 auto",
-    color: "#9fb2c6",
+    color: "#a9bbce",
     fontSize: 18,
-    lineHeight: 1.65
+    lineHeight: 1.65,
+    fontWeight: 400
+  },
+  landingTitleAccent: {
+    color: "#7dd3fc",
+    fontWeight: 500
   },
   landingActions: { marginTop: 26, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 },
   primaryCta: {
@@ -1040,12 +1049,12 @@ const styles = {
     fontSize: 13
   },
   previewStep: {
-    color: "#f8fbff",
+    color: "#eaf3ff",
     background: "rgba(125,211,252,0.05)",
     border: "1px solid rgba(125,211,252,0.12)",
     borderRadius: 14,
     padding: 13,
-    fontWeight: 800,
+    fontWeight: 650,
     lineHeight: 1.45
   },
   previewListItem: {
@@ -1071,11 +1080,12 @@ const styles = {
     padding: "24px 0"
   },
   sectionTitle: {
-    color: "#f8fbff",
-    fontSize: "clamp(28px, 5vw, 44px)",
-    lineHeight: 1.04,
-    letterSpacing: "-0.04em",
-    margin: "0 0 12px"
+    color: "#eaf3ff",
+    fontSize: "clamp(26px, 4.6vw, 40px)",
+    lineHeight: 1.12,
+    letterSpacing: "-0.035em",
+    margin: "0 0 12px",
+    fontWeight: 500
   },
   sectionText: { color: "#9fb2c6", fontSize: 16, lineHeight: 1.7, margin: "0 auto", maxWidth: 620 },
   featureGrid: {
@@ -1100,7 +1110,7 @@ const styles = {
     padding: "34px 18px",
     marginTop: 24
   },
-  finalTitle: { color: "#f8fbff", margin: "0 0 18px", fontSize: 28, letterSpacing: "-0.04em" },
+  finalTitle: { color: "#eaf3ff", margin: "0 0 18px", fontSize: 28, letterSpacing: "-0.035em", fontWeight: 500 },
   hero: { marginBottom: 18 },
   topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 },
   linkButton: {
