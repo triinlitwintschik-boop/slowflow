@@ -5,6 +5,7 @@ const HISTORY_STORAGE_KEY = "slowflow-sessions";
 const DAILY_SKIP_STORAGE_KEY = "slowflow-daily-skipped-items";
 const TODAY_FEEL_STORAGE_KEY = "slowflow-today-feels-like";
 const TODAY_KEY = new Date().toISOString().slice(0, 10);
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/bJebJ1fBA5NN7GO9ysak000";
 
 export default function App() {
   const [showApp, setShowApp] = useState(() => {
@@ -63,6 +64,14 @@ export default function App() {
       return [];
     }
   });
+
+  function openStripeCheckout() {
+    try {
+      window.open(STRIPE_PAYMENT_LINK, "_blank", "noopener,noreferrer");
+    } catch {
+      window.location.href = STRIPE_PAYMENT_LINK;
+    }
+  }
 
   function openApp() {
     setShowApp(true);
@@ -607,7 +616,10 @@ END:VCALENDAR
         <div style={styles.landingContainer}>
           <div style={styles.nav}>
             <div style={styles.brandMark}>SlowFlow</div>
-            <button type="button" onClick={openApp} style={styles.navButton}>Open app</button>
+            <div style={styles.navActions}>
+              <button type="button" onClick={openApp} style={styles.navButton}>Open app</button>
+              <button type="button" onClick={openStripeCheckout} style={styles.navUpgradeButton}>Upgrade</button>
+            </div>
           </div>
 
           <section style={styles.landingHero}>
@@ -622,7 +634,8 @@ END:VCALENDAR
             </p>
             <div style={styles.landingActions}>
               <button type="button" onClick={openApp} style={styles.primaryCta}>Try SlowFlow</button>
-              <div style={styles.ctaNote}>No pressure. No productivity guilt.</div>
+              <button type="button" onClick={openStripeCheckout} style={styles.secondaryCta}>Get Unlimited — €5.99/month</button>
+              <div style={styles.ctaNote}>Free daily reset included. Upgrade when you want unlimited clarity.</div>
             </div>
           </section>
 
@@ -659,7 +672,11 @@ END:VCALENDAR
 
           <section style={styles.finalCta}>
             <h2 style={styles.finalTitle}>Start with what’s already in your head.</h2>
-            <button type="button" onClick={openApp} style={styles.primaryCta}>Open SlowFlow</button>
+            <p style={styles.finalText}>Try the daily reset first. Upgrade to SlowFlow Unlimited when you want more space for your thoughts.</p>
+            <div style={styles.finalActions}>
+              <button type="button" onClick={openApp} style={styles.primaryCta}>Open SlowFlow</button>
+              <button type="button" onClick={openStripeCheckout} style={styles.secondaryCta}>Get Unlimited</button>
+            </div>
           </section>
         </div>
       </div>
@@ -695,7 +712,10 @@ END:VCALENDAR
         <div style={styles.hero}>
           <div style={styles.topRow}>
             <div style={styles.badge}>SlowFlow</div>
-            <button type="button" onClick={() => setShowApp(false)} style={styles.linkButton}>Home</button>
+            <div style={styles.appTopActions}>
+              <button type="button" onClick={openStripeCheckout} style={styles.linkButton}>Upgrade</button>
+              <button type="button" onClick={() => setShowApp(false)} style={styles.linkButton}>Home</button>
+            </div>
           </div>
           <h1 style={styles.title}>When your head is full, start here.</h1>
           <p style={styles.subtitle}>Dump everything on your mind. We’ll help you find one clear next step.</p>
@@ -959,10 +979,25 @@ const styles = {
     borderBottom: "1px solid rgba(125,211,252,0.08)"
   },
   brandMark: { color: "#eaf3ff", fontWeight: 400, fontSize: 18, letterSpacing: "-0.01em" },
+  navActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8
+  },
   navButton: {
     border: "1px solid rgba(125,211,252,0.16)",
     background: "rgba(125,211,252,0.08)",
     color: "#dbeafe",
+    borderRadius: 999,
+    padding: "9px 14px",
+    fontSize: 12,
+    fontWeight: 400,
+    cursor: "pointer"
+  },
+  navUpgradeButton: {
+    border: "1px solid rgba(125,211,252,0.18)",
+    background: "rgba(255,255,255,0.025)",
+    color: "#a9bbce",
     borderRadius: 999,
     padding: "9px 14px",
     fontSize: 12,
@@ -1008,6 +1043,16 @@ const styles = {
     boxShadow: "0 0 22px rgba(56,189,248,0.18)"
   },
   ctaNote: { color: "#6f879b", fontSize: 12 },
+  secondaryCta: {
+    border: "1px solid rgba(125,211,252,0.14)",
+    background: "rgba(255,255,255,0.025)",
+    color: "#cbd5e1",
+    borderRadius: 14,
+    padding: "12px 18px",
+    fontSize: 13,
+    fontWeight: 400,
+    cursor: "pointer"
+  },
   previewGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
@@ -1114,9 +1159,12 @@ const styles = {
     padding: "34px 18px",
     marginTop: 24
   },
-  finalTitle: { color: "#eaf3ff", margin: "0 0 18px", fontSize: 28, letterSpacing: "-0.02em", fontWeight: 300 },
+  finalTitle: { color: "#eaf3ff", margin: "0 0 12px", fontSize: 28, letterSpacing: "-0.02em", fontWeight: 300 },
+  finalText: { color: "#9fb2c6", fontSize: 14, lineHeight: 1.7, maxWidth: 520, margin: "0 auto 18px", fontWeight: 300 },
+  finalActions: { display: "flex", justifyContent: "center", alignItems: "center", gap: 10, flexWrap: "wrap" },
   hero: { marginBottom: 18 },
   topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  appTopActions: { display: "flex", alignItems: "center", gap: 8 },
   linkButton: {
     border: "1px solid rgba(125,211,252,0.12)",
     background: "rgba(255,255,255,0.03)",
