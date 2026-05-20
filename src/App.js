@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 
 const DONE_STORAGE_KEY = "slowflow-done-items";
 const HISTORY_STORAGE_KEY = "slowflow-sessions";
