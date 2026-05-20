@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Analytics } from "@vercel/analytics/react";
+
 const DONE_STORAGE_KEY = "slowflow-done-items";
 const HISTORY_STORAGE_KEY = "slowflow-sessions";
 const DAILY_SKIP_STORAGE_KEY = "slowflow-daily-skipped-items";
@@ -1277,5 +1277,5 @@ const styles = {
   historyActionButton: { flex: 1, border: "1px solid rgba(125,211,252,0.14)", background: "rgba(125,211,252,0.06)", color: "#dbeafe", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" },
   historyDeleteButton: { flex: 1, border: "1px solid rgba(248,113,113,0.18)", background: "rgba(127,29,29,0.12)", color: "#fecaca", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" },
   footer: { textAlign: "center", fontSize: 11, color: "#6f879b", marginTop: 8 }
-  <Analytics />
+  
 };
