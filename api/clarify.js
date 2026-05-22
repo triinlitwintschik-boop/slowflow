@@ -72,8 +72,8 @@ export default async function handler(req, res) {
     const estonian = isEstonianInput(input);
 
     const fallbackSummary = estonian
-      ? "Sul on mitu asja korraga peas. Võtame sellest ainult ühe väikese järgmise sammu"
-      : "You have a few things on your mind. Let’s pick one small next step";
+      ? "Sul on liiga palju asju korraga peas. Kõik ei vaja kohe praegu lahendamist"
+      : "Your brain is holding too many things at once. Not everything needs your attention right now";
 
     const timeSensitiveKeywords = [
       "today", "tonight", "by tonight", "this evening", "tomorrow",
@@ -172,15 +172,19 @@ export default async function handler(req, res) {
     const overloadKeywords = [
       "tired", "exhausted", "burned out", "burnt out", "overwhelmed",
       "too much", "can't think", "cant think", "drained", "numb",
-      "everything feels heavy", "crying", "panic", "panicking",
+      "everything feels heavy", "everything feels urgent", "everything is urgent",
+      "everything feels like an emergency", "crying", "panic", "panicking",
       "stressed", "anxious", "shutdown", "meltdown", "i feel tired",
       "i am tired", "so tired", "really tired", "need a break",
+      "feels urgent", "too urgent", "all urgent",
 
       "väsinud", "olen väsinud", "nii väsinud", "väga väsinud",
       "läbi", "täiesti läbi", "kõik käib üle pea", "ei jaksa",
       "liiga palju", "pea ei tööta", "pea jookseb kokku",
       "ülekoormus", "stressis", "ärev", "ärevus",
-      "nutan", "paanikas", "kurnatud", "vajan pausi"
+      "nutan", "paanikas", "kurnatud", "vajan pausi",
+      "kõik tundub kiire", "kõik tundub pakiline", "kõik on kiire",
+      "kõik tundub hädaolukord"
     ];
 
     const isTimeSensitive = (value) => includesAny(value, timeSensitiveKeywords);
@@ -244,6 +248,8 @@ Rules:
 - Do not invent tasks.
 - Do not translate tasks.
 - Do not add punctuation at the end.
+- If the input includes emotional overload, urgency, exhaustion, anxiety, or a feeling like everything is urgent, mention that this feeling is real but does not need to be solved immediately.
+- Do not treat feelings as tasks.
 
 Input:
 """${input}"""
@@ -267,8 +273,8 @@ Return exactly:
           {
             role: "system",
             content: estonian
-              ? "You return only valid JSON. All text values must be in Estonian. No explanations."
-              : "You return only valid JSON. All text values must be in English. No explanations."
+              ? "You return only valid JSON. All text values must be in Estonian. Do not treat feelings as tasks. No explanations."
+              : "You return only valid JSON. All text values must be in English. Do not treat feelings as tasks. No explanations."
           },
           {
             role: "user",
@@ -302,6 +308,7 @@ Return exactly:
 
     const scoreTask = (text) => {
       if (isLetGo(text)) return -100;
+      if (includesAny(text, overloadKeywords)) return -50;
 
       if (isTimeSensitive(text)) return 120;
       if (isAppointment(text)) return 110;
@@ -322,10 +329,13 @@ Return exactly:
       return 40;
     };
 
-    const breakTask = estonian ? "Võta korraks paus" : "Take a short break";
+    const breakTask = estonian
+      ? "Tee üks rahulik paus"
+      : "Take one calm pause";
+
     const breakStep = estonian
-      ? "Pane telefon 5 minutiks käest ära"
-      : "Put your phone down for 5 minutes";
+      ? "Hinga korraks ja vali ainult üks asi korraga"
+      : "Take a breath and focus on just one thing";
 
     const sortedTasks = [...originalTasks].sort(
       (a, b) => scoreTask(b) - scoreTask(a)
@@ -336,7 +346,7 @@ Return exactly:
         const score = scoreTask(task);
 
         if (isLetGo(task)) return false;
-        if (isOverloaded && includesAny(task, overloadKeywords)) return false;
+        if (includesAny(task, overloadKeywords)) return false;
 
         if (isShopping(task) && !isTimeSensitive(task) && !isAppSetup(task)) {
           return false;
@@ -363,11 +373,11 @@ Return exactly:
         : []),
       ...originalTasks.map((task) => {
         if (isLetGo(task) && !hasStrongTaskSignal) {
-          return { text: task, category: "LET_GO" };
+          return { text: task, category: "NOT_NOW" };
         }
 
-        if (isOverloaded && includesAny(task, overloadKeywords)) {
-          return { text: task, category: "LET_GO" };
+        if (includesAny(task, overloadKeywords)) {
+          return { text: task, category: "NOT_NOW" };
         }
 
         if (actKeys.has(normalize(task))) {
@@ -530,4 +540,3 @@ Return exactly:
     });
   }
 }
-
