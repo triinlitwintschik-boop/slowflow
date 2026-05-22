@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-
 const DONE_STORAGE_KEY = "slowflow-done-items";
 const HISTORY_STORAGE_KEY = "slowflow-sessions";
 const DAILY_SKIP_STORAGE_KEY = "slowflow-daily-skipped-items";
@@ -631,8 +630,11 @@ END:VCALENDAR
               <span style={styles.landingTitleAccent}>start here.</span>
             </h1>
             <p style={styles.landingSubtitle}>
-              Dump everything on your mind. SlowFlow helps you turn mental clutter into one clear next step.
+              Dump everything on your mind. SlowFlow helps you sort the noise and start moving again.
             </p>
+            <div style={styles.heroMiniList}>
+              Do today • Not now • Let go • one small step
+            </div>
             <div style={styles.landingActions}>
               <button type="button" onClick={openApp} style={styles.primaryCta}>Try SlowFlow</button>
               <button type="button" onClick={openStripeCheckout} style={styles.secondaryCta}>Get Unlimited — €5.99/month</button>
@@ -680,7 +682,6 @@ END:VCALENDAR
             </div>
           </section>
         </div>
-       
       </div>
     );
   }
@@ -951,7 +952,6 @@ END:VCALENDAR
 
         <div style={styles.footer}>No pressure. Just one step at a time.</div>
       </div>
-   
     </div>
   );
 }
@@ -1031,6 +1031,13 @@ const styles = {
     color: "#a9bbce",
     fontSize: 17,
     lineHeight: 1.7,
+    fontWeight: 300
+  },
+  heroMiniList: {
+    marginTop: 14,
+    color: "#7f93a8",
+    fontSize: 13,
+    lineHeight: 1.6,
     fontWeight: 300
   },
   landingActions: { marginTop: 26, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 },
