@@ -633,7 +633,7 @@ END:VCALENDAR
               Dump everything on your mind. SlowFlow helps you sort the noise and start moving again.
             </p>
             <div style={styles.heroMiniList}>
-              Do today • Not now • Let go • one small step
+              Do today • Not now • Let go • One small step
             </div>
             <div style={styles.landingActions}>
               <button type="button" onClick={openApp} style={styles.primaryCta}>Try SlowFlow</button>
