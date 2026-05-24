@@ -252,13 +252,14 @@ Core rules:
 - Do not diagnose, moralize, coach too much, or sound like therapy.
 - Do not add punctuation at the end.
 - Emotional states are not action items.
-- If something is a feeling, body state, or urgency state, put it into NOT_NOW and rewrite it gently.
+- If something is a feeling, body state, tiredness, or urgency state, put it into NOT_NOW and rewrite it as a neutral observation, not an instruction.
+- NOT_NOW items should reduce pressure. They should not sound like new tasks.
 - If something is an actionable task, rewrite it into a short, calm action phrase.
 - Remove heavy wording like "need to", "have to", "forgot to", "I must", "I should".
 
 Categories:
 - ACT = concrete actions that genuinely need attention today.
-- NOT_NOW = things that can wait, emotional states, mental noise, or context that does not require immediate action.
+- NOT_NOW = things that can wait, emotional states, tiredness, mental noise, or context that does not require immediate action. Use observation-style wording, not command-style wording.
 - LET_GO = guilt, shame, worry, or pressure that can be released.
 
 Good rewrites:
@@ -266,12 +267,13 @@ Good rewrites:
 - "need to finish presentation for tomorrow" → "Continue tomorrow's presentation"
 - "reply to 14 unread emails" → "Reply to the most important email"
 - "call the client back" → "Call the client"
-- "running on 4 hours of sleep" → "Prioritize rest today"
+- "running on 4 hours of sleep" → "You are running on very little sleep"
 - "everything feels urgent" → "Not everything needs action right now"
 - "my inbox is a disaster" → "Reply to the most important email"
 
 Bad rewrites:
 - Do not turn "running on 4 hours of sleep" into "Fix your sleep schedule"
+- Do not turn "running on 4 hours of sleep" into "Prioritize rest today" if it is in NOT_NOW, because that sounds like another task
 - Do not turn feelings into big self-improvement tasks.
 - Do not create advice that the user did not ask for.
 
@@ -347,12 +349,19 @@ Return exactly:
       if (!original) return "";
       if (includesAny(original, overloadKeywords)) {
         if (text.includes("sleep") || text.includes("maganud")) {
-          return estonian ? "Hoia tänast rahulikumana" : "Prioritize rest today";
+          return estonian
+            ? "Oled tavalisest vähem maganud"
+            : "You are running on very little sleep";
         }
         if (text.includes("urgent") || text.includes("kiire") || text.includes("pakiline")) {
           return estonian
             ? "Kõik ei vaja kohe tegutsemist"
             : "Not everything needs action right now";
+        }
+        if (text.includes("tired") || text.includes("exhausted") || text.includes("väsinud") || text.includes("kurnatud")) {
+          return estonian
+            ? "Oled praegu tavalisest väsinum"
+            : "You are more tired than usual right now";
         }
         return original;
       }
@@ -435,7 +444,55 @@ Return exactly:
       ? "Hinga korraks ja vali ainult üks asi korraga"
       : "Take a breath and focus on just one thing";
 
-    const safeCategory = (original, requestedCategory) => {
+    const startsLikeAction = (value) => {
+      const text = normalize(value);
+      const actionStarts = [
+        "send", "continue", "finish", "reply", "call", "book", "pay", "open",
+        "write", "check", "buy", "order", "schedule", "choose", "start",
+        "saada", "jätka", "lõpeta", "vasta", "helista", "broneeri", "maksa",
+        "ava", "kirjuta", "kontrolli", "osta", "telli", "vali", "alusta"
+      ];
+
+      return actionStarts.some((word) => text.startsWith(word + " ") || text === word);
+    };
+
+    const softenNotNowText = (original, rewritten) => {
+      const originalText = normalize(original);
+      const rewrittenText = normalize(rewritten);
+
+      if (originalText.includes("sleep") || originalText.includes("maganud")) {
+        return estonian
+          ? "Oled tavalisest vähem maganud"
+          : "You are running on very little sleep";
+      }
+
+      if (originalText.includes("urgent") || originalText.includes("kiire") || originalText.includes("pakiline")) {
+        return estonian
+          ? "Kõik ei vaja kohe tegutsemist"
+          : "Not everything needs action right now";
+      }
+
+      if (
+        originalText.includes("tired") ||
+        originalText.includes("exhausted") ||
+        originalText.includes("väsinud") ||
+        originalText.includes("kurnatud")
+      ) {
+        return estonian
+          ? "Oled praegu tavalisest väsinum"
+          : "You are more tired than usual right now";
+      }
+
+      if (startsLikeAction(rewrittenText)) {
+        return estonian
+          ? "See ei pea olema esimene asi praegu"
+          : "This does not need to be first right now";
+      }
+
+      return cleanText(rewritten);
+    };
+
+    const safeCategory = (original, requestedCategory, rewrittenText = "") => {
       const category = ["ACT", "NOT_NOW", "LET_GO"].includes(requestedCategory)
         ? requestedCategory
         : "NOT_NOW";
@@ -450,6 +507,12 @@ Return exactly:
 
         if (scoreTask(original) < 50) {
           return "NOT_NOW";
+        }
+      }
+
+      if (category === "NOT_NOW" && startsLikeAction(rewrittenText)) {
+        if (scoreTask(original) >= 50 && !includesAny(original, overloadKeywords)) {
+          return "ACT";
         }
       }
 
@@ -513,10 +576,15 @@ Return exactly:
         }
       }
 
+      const finalCategory = safeCategory(task, category, rewrittenText);
+      const finalText = finalCategory === "NOT_NOW"
+        ? softenNotNowText(task, rewrittenText)
+        : rewrittenText;
+
       return {
         original: task,
-        text: rewrittenText,
-        category: safeCategory(task, category)
+        text: finalText,
+        category: finalCategory
       };
     });
 
