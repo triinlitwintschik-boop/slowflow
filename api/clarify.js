@@ -512,6 +512,19 @@ Return exactly:
           : "Your inbox feels overwhelming right now";
       }
 
+      if (
+        originalText.includes("apartment") ||
+        originalText.includes("home") ||
+        originalText.includes("house") ||
+        originalText.includes("mess") ||
+        originalText.includes("korter") ||
+        originalText.includes("kodu")
+      ) {
+        return estonian
+          ? "Su ümbrus tundub praegu veidi kaootiline"
+          : "Your space feels messy and overwhelming right now";
+      }
+
       if (originalText.includes("urgent") || originalText.includes("kiire") || originalText.includes("pakiline")) {
         return estonian
           ? "Kõik ei vaja kohe tegutsemist"
