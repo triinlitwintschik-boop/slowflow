@@ -484,9 +484,7 @@ Return exactly:
       }
 
       if (startsLikeAction(rewrittenText)) {
-        return estonian
-          ? "See ei pea olema esimene asi praegu"
-          : "This does not need to be first right now";
+        return cleanText(original);
       }
 
       return cleanText(rewritten);
