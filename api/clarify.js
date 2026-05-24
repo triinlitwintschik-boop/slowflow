@@ -249,6 +249,21 @@ Core rules:
 - Do not add details that are not implied by the user.
 - Stay semantically close to the user's words.
 - Rewrite only for clarity, calmness, and actionability.
+
+Summary rules:
+- The summary must sound human, calm, and observant.
+- The summary must reflect the user's situation, not describe what the app is doing.
+- Never write generic tool language like "Organize tasks and observations for clarity".
+- Never use phrases like "organize tasks", "for clarity", "task management", or "productivity".
+- Keep the summary to 1 short sentence, or 2 short sentences maximum.
+- Mention that not everything needs attention right now when the input contains overload, urgency, tiredness, or too many open loops.
+
+Good summaries:
+- "Your brain is trying to hold too many things at once"
+- "A few things need attention, but not everything is urgent"
+- "You seem mentally overloaded right now"
+- "Some things matter today. The rest can wait"
+- "You are carrying a lot, but only a few things need action right now"
 - Do not diagnose, moralize, coach too much, or sound like therapy.
 - Do not add punctuation at the end.
 - Emotional states are not action items.
@@ -332,6 +347,31 @@ Return exactly:
     let parsed = {
       summary: fallbackSummary,
       items: []
+    };
+
+    const cleanSummary = (value) => {
+      const summary = cleanText(value);
+      const genericSummaryPhrases = [
+        "organize tasks and observations for clarity",
+        "organize tasks",
+        "for clarity",
+        "task management",
+        "productivity"
+      ];
+
+      if (!summary) return fallbackSummary;
+
+      const lower = summary.toLowerCase();
+
+      if (genericSummaryPhrases.some((phrase) => lower.includes(phrase))) {
+        return isOverloaded
+          ? fallbackSummary
+          : estonian
+          ? "Mõni asi vajab tähelepanu, aga mitte kõik korraga"
+          : "A few things need attention, but not everything at once";
+      }
+
+      return summary;
     };
 
     try {
@@ -788,7 +828,7 @@ Return exactly:
     const nextStep = makeMicroStep(bestItem);
 
     return res.status(200).json({
-      summary: cleanText(parsed.summary) || fallbackSummary,
+      summary: cleanSummary(parsed.summary),
       next_step_under_5_min: cleanText(nextStep),
       next_step_for: cleanText(bestItem?.text || ""),
       items: cappedItems.map((item) => ({
