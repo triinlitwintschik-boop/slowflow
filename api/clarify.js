@@ -250,6 +250,15 @@ Rules:
 - Do not add punctuation at the end.
 - If the input includes emotional overload, urgency, exhaustion, anxiety, or a feeling like everything is urgent, mention that this feeling is real but does not need to be solved immediately.
 - Do not treat feelings as tasks.
+- Rewrite task-like wording into short, calm, actionable phrases.
+- Remove heavy wording like "need to", "have to", "forgot to", "I must", "I should".
+- Keep action items mentally lighter and easier to start.
+
+Good item rewrites:
+- "forgot to send the invoice" → "Send the invoice"
+- "need to finish presentation for tomorrow" → "Continue tomorrow's presentation"
+- "reply to 14 unread emails" → "Reply to the most important email"
+- "call the client back" → "Call the client"
 
 Input:
 """${input}"""
@@ -362,6 +371,61 @@ Return exactly:
 
     const actKeys = new Set(finalActTasks.map((task) => normalize(task)));
 
+    const rewriteTaskText = (task) => {
+      const original = cleanText(task);
+      const text = normalize(original);
+
+      if (!original) return "";
+      if (normalize(original) === normalize(breakTask)) return breakTask;
+      if (includesAny(original, overloadKeywords)) return original;
+
+      if (text.includes("forgot to send") && text.includes("invoice")) {
+        return estonian ? "Saada arve ära" : "Send the invoice";
+      }
+
+      if (text.includes("need to finish") && text.includes("presentation")) {
+        return estonian ? "Jätka homset esitlust" : "Continue tomorrow's presentation";
+      }
+
+      if (text.includes("finish presentation") && text.includes("tomorrow")) {
+        return estonian ? "Jätka homset esitlust" : "Continue tomorrow's presentation";
+      }
+
+      if (text.includes("reply to") && text.includes("unread email")) {
+        return estonian ? "Vasta kõige olulisemale e-kirjale" : "Reply to the most important email";
+      }
+
+      if (text.includes("call the client back") || text.includes("call client back")) {
+        return estonian ? "Helista kliendile" : "Call the client";
+      }
+
+      const removableStarts = [
+        "i forgot to ",
+        "forgot to ",
+        "i need to ",
+        "need to ",
+        "i have to ",
+        "have to ",
+        "i must ",
+        "must ",
+        "i should ",
+        "should "
+      ];
+
+      let rewritten = original;
+      const lower = rewritten.toLowerCase();
+      const prefix = removableStarts.find((item) => lower.startsWith(item));
+
+      if (prefix) {
+        rewritten = rewritten.slice(prefix.length);
+      }
+
+      rewritten = cleanText(rewritten);
+      if (!rewritten) return original;
+
+      return rewritten.charAt(0).toUpperCase() + rewritten.slice(1);
+    };
+
     const items = [
       ...(isOverloaded
         ? [
@@ -373,18 +437,18 @@ Return exactly:
         : []),
       ...originalTasks.map((task) => {
         if (isLetGo(task) && !hasStrongTaskSignal) {
-          return { text: task, category: "NOT_NOW" };
+          return { text: rewriteTaskText(task), category: "NOT_NOW" };
         }
 
         if (includesAny(task, overloadKeywords)) {
-          return { text: task, category: "NOT_NOW" };
+          return { text: rewriteTaskText(task), category: "NOT_NOW" };
         }
 
         if (actKeys.has(normalize(task))) {
-          return { text: task, category: "ACT" };
+          return { text: rewriteTaskText(task), category: "ACT" };
         }
 
-        return { text: task, category: "NOT_NOW" };
+        return { text: rewriteTaskText(task), category: "NOT_NOW" };
       })
     ].filter((item) => item.text && item.text !== "LET_GO");
 
@@ -529,7 +593,7 @@ Return exactly:
     return res.status(200).json({
       summary: cleanText(parsed.summary) || fallbackSummary,
       next_step_under_5_min: cleanText(nextStep),
-      next_step_for: cleanText(bestTask),
+      next_step_for: cleanText(rewriteTaskText(bestTask)),
       items
     });
   } catch (error) {
@@ -540,3 +604,5 @@ Return exactly:
     });
   }
 }
+
+
