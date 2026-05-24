@@ -466,6 +466,12 @@ Return exactly:
           : "You are running on very little sleep";
       }
 
+      if (originalText.includes("inbox") || originalText.includes("postkast") || originalText.includes("meilikast")) {
+        return estonian
+          ? "Su postkast tundub praegu ülekoormav"
+          : "Your inbox feels overwhelming right now";
+      }
+
       if (originalText.includes("urgent") || originalText.includes("kiire") || originalText.includes("pakiline")) {
         return estonian
           ? "Kõik ei vaja kohe tegutsemist"
@@ -484,10 +490,36 @@ Return exactly:
       }
 
       if (startsLikeAction(rewrittenText)) {
-        return cleanText(original);
+        const softenedOriginal = cleanText(original);
+        if (softenedOriginal.toLowerCase().startsWith("my ")) {
+          return "Your " + softenedOriginal.slice(3);
+        }
+        if (softenedOriginal.toLowerCase().startsWith("i am ")) {
+          return "You are " + softenedOriginal.slice(5);
+        }
+        if (softenedOriginal.toLowerCase().startsWith("i'm ")) {
+          return "You are " + softenedOriginal.slice(4);
+        }
+        if (softenedOriginal.toLowerCase().startsWith("i feel ")) {
+          return "You feel " + softenedOriginal.slice(7);
+        }
+        return softenedOriginal;
       }
 
-      return cleanText(rewritten);
+      const softened = cleanText(rewritten);
+      if (softened.toLowerCase().startsWith("my ")) {
+        return "Your " + softened.slice(3);
+      }
+      if (softened.toLowerCase().startsWith("i am ")) {
+        return "You are " + softened.slice(5);
+      }
+      if (softened.toLowerCase().startsWith("i'm ")) {
+        return "You are " + softened.slice(4);
+      }
+      if (softened.toLowerCase().startsWith("i feel ")) {
+        return "You feel " + softened.slice(7);
+      }
+      return softened;
     };
 
     const safeCategory = (original, requestedCategory, rewrittenText = "") => {
