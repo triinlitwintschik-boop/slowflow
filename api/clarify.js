@@ -99,7 +99,8 @@ export default async function handler(req, res) {
       "email", "emails", "reply", "message", "messages", "call", "text", "sms",
       "e-mail", "e-mails", "kirjuta", "vasta", "vastata", "e-kiri",
       "e-kirjad", "e-kirjadele", "meil", "meilid", "sõnum", "sõnumid",
-      "helista", "kõne", "sõbranna", "sõbrannale", "emale", "isale"
+      "helista", "kõne", "sõbranna", "sõbrannale", "emale", "isale",
+      "client", "customer", "kliendile", "klient"
     ];
 
     const paymentKeywords = [
@@ -176,7 +177,8 @@ export default async function handler(req, res) {
       "everything feels like an emergency", "crying", "panic", "panicking",
       "stressed", "anxious", "shutdown", "meltdown", "i feel tired",
       "i am tired", "so tired", "really tired", "need a break",
-      "feels urgent", "too urgent", "all urgent",
+      "feels urgent", "too urgent", "all urgent", "4 hours of sleep",
+      "four hours of sleep", "not enough sleep", "running on",
 
       "väsinud", "olen väsinud", "nii väsinud", "väga väsinud",
       "läbi", "täiesti läbi", "kõik käib üle pea", "ei jaksa",
@@ -184,7 +186,7 @@ export default async function handler(req, res) {
       "ülekoormus", "stressis", "ärev", "ärevus",
       "nutan", "paanikas", "kurnatud", "vajan pausi",
       "kõik tundub kiire", "kõik tundub pakiline", "kõik on kiire",
-      "kõik tundub hädaolukord"
+      "kõik tundub hädaolukord", "vähe maganud"
     ];
 
     const isTimeSensitive = (value) => includesAny(value, timeSensitiveKeywords);
@@ -242,30 +244,52 @@ CRITICAL LANGUAGE RULE:
 - If the input contains mostly Estonian words or Estonian letters (õ ä ö ü), respond fully in Estonian.
 - The summary and all generated text MUST match the user's language exactly.
 
-Rules:
-- Write a short warm summary.
-- Keep it calm and natural.
-- Do not invent tasks.
-- Do not translate tasks.
+Core rules:
+- Do not invent new tasks.
+- Do not add details that are not implied by the user.
+- Stay semantically close to the user's words.
+- Rewrite only for clarity, calmness, and actionability.
+- Do not diagnose, moralize, coach too much, or sound like therapy.
 - Do not add punctuation at the end.
-- If the input includes emotional overload, urgency, exhaustion, anxiety, or a feeling like everything is urgent, mention that this feeling is real but does not need to be solved immediately.
-- Do not treat feelings as tasks.
-- Rewrite task-like wording into short, calm, actionable phrases.
+- Emotional states are not action items.
+- If something is a feeling, body state, or urgency state, put it into NOT_NOW and rewrite it gently.
+- If something is an actionable task, rewrite it into a short, calm action phrase.
 - Remove heavy wording like "need to", "have to", "forgot to", "I must", "I should".
-- Keep action items mentally lighter and easier to start.
 
-Good item rewrites:
+Categories:
+- ACT = concrete actions that genuinely need attention today.
+- NOT_NOW = things that can wait, emotional states, mental noise, or context that does not require immediate action.
+- LET_GO = guilt, shame, worry, or pressure that can be released.
+
+Good rewrites:
 - "forgot to send the invoice" → "Send the invoice"
 - "need to finish presentation for tomorrow" → "Continue tomorrow's presentation"
 - "reply to 14 unread emails" → "Reply to the most important email"
 - "call the client back" → "Call the client"
+- "running on 4 hours of sleep" → "Prioritize rest today"
+- "everything feels urgent" → "Not everything needs action right now"
+- "my inbox is a disaster" → "Reply to the most important email"
+
+Bad rewrites:
+- Do not turn "running on 4 hours of sleep" into "Fix your sleep schedule"
+- Do not turn feelings into big self-improvement tasks.
+- Do not create advice that the user did not ask for.
 
 Input:
 """${input}"""
 
+Split the input into the same number of items as the user wrote, unless one line clearly contains several comma-separated tasks.
+
 Return exactly:
 {
-  "summary": "string"
+  "summary": "string",
+  "items": [
+    {
+      "original": "string from the user",
+      "text": "short rewritten version",
+      "category": "ACT or NOT_NOW or LET_GO"
+    }
+  ]
 }
 `;
 
@@ -282,8 +306,8 @@ Return exactly:
           {
             role: "system",
             content: estonian
-              ? "You return only valid JSON. All text values must be in Estonian. Do not treat feelings as tasks. No explanations."
-              : "You return only valid JSON. All text values must be in English. Do not treat feelings as tasks. No explanations."
+              ? "You return only valid JSON. All text values must be in Estonian. Do not invent tasks. Do not treat feelings as tasks. No explanations."
+              : "You return only valid JSON. All text values must be in English. Do not invent tasks. Do not treat feelings as tasks. No explanations."
           },
           {
             role: "user",
@@ -304,7 +328,8 @@ Return exactly:
     const raw = openAiData?.choices?.[0]?.message?.content || "";
 
     let parsed = {
-      summary: fallbackSummary
+      summary: fallbackSummary,
+      items: []
     };
 
     try {
@@ -315,69 +340,22 @@ Return exactly:
       console.error("JSON parse failed:", raw);
     }
 
-    const scoreTask = (text) => {
-      if (isLetGo(text)) return -100;
-      if (includesAny(text, overloadKeywords)) return -50;
-
-      if (isTimeSensitive(text)) return 120;
-      if (isAppointment(text)) return 110;
-      if (isAppSetup(text)) return 108;
-      if (isPayment(text)) return 105;
-      if (isPetCare(text)) return 100;
-      if (isCommunication(text)) return 95;
-      if (isTicket(text)) return 90;
-
-      if (isShopping(text)) {
-        if (isTimeSensitive(text)) return 95;
-        return 25;
-      }
-
-      if (isSelfCare(text)) return 70;
-      if (isWait(text)) return 20;
-
-      return 40;
-    };
-
-    const breakTask = estonian
-      ? "Tee üks rahulik paus"
-      : "Take one calm pause";
-
-    const breakStep = estonian
-      ? "Hinga korraks ja vali ainult üks asi korraga"
-      : "Take a breath and focus on just one thing";
-
-    const sortedTasks = [...originalTasks].sort(
-      (a, b) => scoreTask(b) - scoreTask(a)
-    );
-
-    const actTasks = sortedTasks
-      .filter((task) => {
-        const score = scoreTask(task);
-
-        if (isLetGo(task)) return false;
-        if (includesAny(task, overloadKeywords)) return false;
-
-        if (isShopping(task) && !isTimeSensitive(task) && !isAppSetup(task)) {
-          return false;
-        }
-
-        return score >= 50;
-      })
-      .slice(0, isOverloaded ? 2 : 3);
-
-    const finalActTasks = isOverloaded
-      ? [breakTask, ...actTasks].slice(0, 3)
-      : actTasks;
-
-    const actKeys = new Set(finalActTasks.map((task) => normalize(task)));
-
-    const rewriteTaskText = (task) => {
+    const fallbackRewriteTaskText = (task) => {
       const original = cleanText(task);
       const text = normalize(original);
 
       if (!original) return "";
-      if (normalize(original) === normalize(breakTask)) return breakTask;
-      if (includesAny(original, overloadKeywords)) return original;
+      if (includesAny(original, overloadKeywords)) {
+        if (text.includes("sleep") || text.includes("maganud")) {
+          return estonian ? "Hoia tänast rahulikumana" : "Prioritize rest today";
+        }
+        if (text.includes("urgent") || text.includes("kiire") || text.includes("pakiline")) {
+          return estonian
+            ? "Kõik ei vaja kohe tegutsemist"
+            : "Not everything needs action right now";
+        }
+        return original;
+      }
 
       if (text.includes("forgot to send") && text.includes("invoice")) {
         return estonian ? "Saada arve ära" : "Send the invoice";
@@ -426,52 +404,176 @@ Return exactly:
       return rewritten.charAt(0).toUpperCase() + rewritten.slice(1);
     };
 
-    const items = [
-      ...(isOverloaded
-        ? [
-            {
-              text: breakTask,
-              category: "ACT"
-            }
-          ]
-        : []),
-      ...originalTasks.map((task) => {
-        if (isLetGo(task) && !hasStrongTaskSignal) {
-          return { text: rewriteTaskText(task), category: "NOT_NOW" };
+    const scoreTask = (text) => {
+      if (isLetGo(text)) return -100;
+      if (includesAny(text, overloadKeywords)) return -50;
+
+      if (isTimeSensitive(text)) return 120;
+      if (isAppointment(text)) return 110;
+      if (isAppSetup(text)) return 108;
+      if (isPayment(text)) return 105;
+      if (isPetCare(text)) return 100;
+      if (isCommunication(text)) return 95;
+      if (isTicket(text)) return 90;
+
+      if (isShopping(text)) {
+        if (isTimeSensitive(text)) return 95;
+        return 25;
+      }
+
+      if (isSelfCare(text)) return 70;
+      if (isWait(text)) return 20;
+
+      return 40;
+    };
+
+    const breakTask = estonian
+      ? "Tee üks rahulik paus"
+      : "Take one calm pause";
+
+    const breakStep = estonian
+      ? "Hinga korraks ja vali ainult üks asi korraga"
+      : "Take a breath and focus on just one thing";
+
+    const safeCategory = (original, requestedCategory) => {
+      const category = ["ACT", "NOT_NOW", "LET_GO"].includes(requestedCategory)
+        ? requestedCategory
+        : "NOT_NOW";
+
+      if (includesAny(original, overloadKeywords)) return "NOT_NOW";
+      if (isLetGo(original) && !hasStrongTaskSignal) return "LET_GO";
+
+      if (category === "ACT") {
+        if (isShopping(original) && !isTimeSensitive(original) && !isAppSetup(original)) {
+          return "NOT_NOW";
         }
 
-        if (includesAny(task, overloadKeywords)) {
-          return { text: rewriteTaskText(task), category: "NOT_NOW" };
+        if (scoreTask(original) < 50) {
+          return "NOT_NOW";
+        }
+      }
+
+      return category;
+    };
+
+    const aiItemsByOriginal = new Map();
+
+    if (Array.isArray(parsed.items)) {
+      parsed.items.forEach((item) => {
+        const original = cleanText(item?.original || "");
+        const text = cleanText(item?.text || "");
+        const category = item?.category;
+
+        if (!original || !text) return;
+
+        aiItemsByOriginal.set(normalize(original), {
+          original,
+          text,
+          category
+        });
+      });
+    }
+
+    const sortedTasks = [...originalTasks].sort(
+      (a, b) => scoreTask(b) - scoreTask(a)
+    );
+
+    const fallbackActTasks = sortedTasks
+      .filter((task) => {
+        const score = scoreTask(task);
+
+        if (isLetGo(task)) return false;
+        if (includesAny(task, overloadKeywords)) return false;
+
+        if (isShopping(task) && !isTimeSensitive(task) && !isAppSetup(task)) {
+          return false;
         }
 
-        if (actKeys.has(normalize(task))) {
-          return { text: rewriteTaskText(task), category: "ACT" };
-        }
-
-        return { text: rewriteTaskText(task), category: "NOT_NOW" };
+        return score >= 50;
       })
-    ].filter((item) => item.text && item.text !== "LET_GO");
+      .slice(0, isOverloaded ? 2 : 3);
 
-    const makeMicroStep = (task) => {
-      const text = normalize(task);
+    const fallbackActKeys = new Set(fallbackActTasks.map((task) => normalize(task)));
 
-      if (isOverloaded && normalize(task) === normalize(breakTask)) {
+    const baseItems = originalTasks.map((task) => {
+      const aiItem = aiItemsByOriginal.get(normalize(task));
+      const rewrittenText = cleanText(aiItem?.text) || fallbackRewriteTaskText(task);
+
+      let category = aiItem?.category;
+
+      if (!category) {
+        if (isLetGo(task) && !hasStrongTaskSignal) {
+          category = "LET_GO";
+        } else if (includesAny(task, overloadKeywords)) {
+          category = "NOT_NOW";
+        } else if (fallbackActKeys.has(normalize(task))) {
+          category = "ACT";
+        } else {
+          category = "NOT_NOW";
+        }
+      }
+
+      return {
+        original: task,
+        text: rewrittenText,
+        category: safeCategory(task, category)
+      };
+    });
+
+    const itemsWithBreak = isOverloaded
+      ? [
+          {
+            original: breakTask,
+            text: breakTask,
+            category: "ACT"
+          },
+          ...baseItems
+        ]
+      : baseItems;
+
+    const seen = new Set();
+    const items = itemsWithBreak
+      .filter((item) => item.text && item.text !== "LET_GO")
+      .filter((item) => {
+        const key = `${item.category}::${normalize(item.text)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+    const actItems = items.filter((item) => item.category === "ACT");
+    const extraActItems = actItems.slice(isOverloaded ? 3 : 3);
+    const extraActKeys = new Set(extraActItems.map((item) => normalize(item.text)));
+
+    const cappedItems = items.map((item) => {
+      if (item.category === "ACT" && extraActKeys.has(normalize(item.text))) {
+        return { ...item, category: "NOT_NOW" };
+      }
+
+      return item;
+    });
+
+    const makeMicroStep = (item) => {
+      const original = item?.original || item?.text || "";
+      const text = normalize(original);
+
+      if (isOverloaded && normalize(item?.text) === normalize(breakTask)) {
         return breakStep;
       }
 
-      if (isAppSetup(task)) {
+      if (isAppSetup(original)) {
         return estonian
           ? "Ava tahvel ja otsi app üles"
           : "Open the tablet and find the app";
       }
 
-      if (isShopping(task)) {
+      if (isShopping(original)) {
         return estonian
           ? "Kirjuta ostunimekirja esimene asi"
           : "Write the first item on the shopping list";
       }
 
-      if (isPetCare(task)) {
+      if (isPetCare(original)) {
         if (
           text.includes("walk") ||
           text.includes("jaluta") ||
@@ -505,13 +607,13 @@ Return exactly:
           : "Put one pet-care item ready";
       }
 
-      if (isPayment(task)) {
+      if (isPayment(original)) {
         return estonian
           ? "Ava arve ja kontrolli summa üle"
           : "Open the bill and check the amount";
       }
 
-      if (isCommunication(task)) {
+      if (isCommunication(original)) {
         if (
           text.includes("call") ||
           text.includes("helista") ||
@@ -527,7 +629,7 @@ Return exactly:
           : "Open the message or email and write the first sentence";
       }
 
-      if (isAppointment(task)) {
+      if (isAppointment(original)) {
         if (
           text.includes("restoran") ||
           text.includes("restaurant") ||
@@ -544,19 +646,19 @@ Return exactly:
           : "Open your calendar and check the first free time";
       }
 
-      if (isTicket(task)) {
+      if (isTicket(original)) {
         return estonian
           ? "Ava piletileht ja vaata esimest sobivat varianti"
           : "Open the ticket page and check the first suitable option";
       }
 
-      if (isSelfCare(task)) {
+      if (isSelfCare(original)) {
         return estonian
           ? "Pane 5 minuti taimer käima ja alusta kõige väiksemast kohast"
           : "Set a 5-minute timer and start with the smallest part";
       }
 
-      if (isTimeSensitive(task)) {
+      if (isTimeSensitive(original)) {
         return estonian
           ? "Ava see asi ja tee esimene väike liigutus"
           : "Open it and take the first small action";
@@ -584,17 +686,17 @@ Return exactly:
       });
     }
 
-    const bestTask = isOverloaded
-      ? breakTask
-      : finalActTasks[0] || originalTasks[0] || "";
-
-    const nextStep = makeMicroStep(bestTask);
+    const bestItem = cappedItems.find((item) => item.category === "ACT") || cappedItems[0];
+    const nextStep = makeMicroStep(bestItem);
 
     return res.status(200).json({
       summary: cleanText(parsed.summary) || fallbackSummary,
       next_step_under_5_min: cleanText(nextStep),
-      next_step_for: cleanText(rewriteTaskText(bestTask)),
-      items
+      next_step_for: cleanText(bestItem?.text || ""),
+      items: cappedItems.map((item) => ({
+        text: cleanText(item.text),
+        category: item.category
+      }))
     });
   } catch (error) {
     console.error(error);
@@ -604,5 +706,3 @@ Return exactly:
     });
   }
 }
-
-
