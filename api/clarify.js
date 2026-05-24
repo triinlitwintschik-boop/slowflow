@@ -100,7 +100,7 @@ export default async function handler(req, res) {
       "e-mail", "e-mails", "kirjuta", "vasta", "vastata", "e-kiri",
       "e-kirjad", "e-kirjadele", "meil", "meilid", "sõnum", "sõnumid",
       "helista", "kõne", "sõbranna", "sõbrannale", "emale", "isale",
-      "client", "customer", "kliendile", "klient"
+      "client", "customer", "trainer", "kliendile", "klient", "treener", "treenerile"
     ];
 
     const paymentKeywords = [
@@ -139,7 +139,9 @@ export default async function handler(req, res) {
       "kass", "kassi", "toida kassi", "anna kassile süüa",
       "liivakast", "kassi liivakast", "lemmikloom", "lemmiklooma",
       "lemmikloomad", "koeraga metsa", "mine koeraga", "koeraga õue",
-      "koeraga välja", "vii koer"
+      "koeraga välja", "vii koer", "horse", "horse feed", "order horse feed",
+      "farrier", "farrier payment", "yard", "hobune", "hobuse", "hobusele",
+      "hobusesööt", "hobuse sööt", "sööt", "sepp", "sepa arve", "tall"
     ];
 
     const selfCareKeywords = [
@@ -426,6 +428,18 @@ Return exactly:
         return estonian ? "Helista kliendile" : "Call the client";
       }
 
+      if (text.includes("order horse feed") || (text.includes("horse") && text.includes("feed"))) {
+        return estonian ? "Telli hobusele sööt" : "Order horse feed";
+      }
+
+      if (text.includes("farrier") && text.includes("payment")) {
+        return estonian ? "Maksa sepa arve" : "Make farrier payment";
+      }
+
+      if (text.includes("answer") && text.includes("trainer")) {
+        return estonian ? "Vasta treenerile" : "Answer the trainer";
+      }
+
       const removableStarts = [
         "i forgot to ",
         "forgot to ",
@@ -474,6 +488,45 @@ Return exactly:
       if (isWait(text)) return 20;
 
       return 40;
+    };
+
+    const isConcretePractical = (value) => {
+      if (includesAny(value, overloadKeywords)) return false;
+      if (isPayment(value)) return true;
+      if (isPetCare(value)) return true;
+      if (isCommunication(value)) return true;
+      if (isAppointment(value)) return true;
+      if (isTicket(value)) return true;
+      if (isAppSetup(value)) return true;
+      if (isTimeSensitive(value)) return true;
+      if (isShopping(value) && isTimeSensitive(value)) return true;
+      return false;
+    };
+
+    const cleanActionText = (value) => {
+      let text = cleanText(value);
+      const starts = [
+        "i forgot to ",
+        "forgot to ",
+        "i need to ",
+        "need to ",
+        "i have to ",
+        "have to ",
+        "i must ",
+        "must ",
+        "i should ",
+        "should "
+      ];
+
+      const lower = text.toLowerCase();
+      const prefix = starts.find((item) => lower.startsWith(item));
+
+      if (prefix) {
+        text = text.slice(prefix.length);
+      }
+
+      if (!text) return cleanText(value);
+      return text.charAt(0).toUpperCase() + text.slice(1);
     };
 
     const breakTask = estonian
@@ -580,7 +633,7 @@ Return exactly:
         ? requestedCategory
         : "NOT_NOW";
 
-      if (includesAny(original, overloadKeywords)) return "NOT_NOW";
+      if (includesAny(original, overloadKeywords) && !isConcretePractical(original)) return "NOT_NOW";
       if (isLetGo(original) && !hasStrongTaskSignal) return "LET_GO";
 
       if (category === "ACT") {
@@ -591,6 +644,10 @@ Return exactly:
         if (scoreTask(original) < 50) {
           return "NOT_NOW";
         }
+      }
+
+      if (category === "NOT_NOW" && isConcretePractical(original)) {
+        return "ACT";
       }
 
       if (category === "NOT_NOW" && startsLikeAction(rewrittenText)) {
@@ -662,7 +719,7 @@ Return exactly:
       const finalCategory = safeCategory(task, category, rewrittenText);
       const finalText = finalCategory === "NOT_NOW"
         ? softenNotNowText(task, rewrittenText)
-        : rewrittenText;
+        : cleanActionText(rewrittenText);
 
       return {
         original: task,
